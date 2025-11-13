@@ -1,0 +1,160 @@
+# ============================================================================
+# Quantum Trader AI - Main Bot Configuration
+# ============================================================================
+# CRITICAL: This configuration manages REAL CAPITAL
+# All values can be overridden by environment variables
+# ============================================================================
+
+bot:
+  name: ${BOT_NAME:-quantum-trader-main}
+  version: ${BOT_VERSION:-1.0.0}
+  environment: ${ENVIRONMENT:-production}
+
+  # Execution settings
+  execution:
+    mode: ${EXECUTION_MODE:-live}  # live, paper, backtest
+    max_concurrent_orders: ${MAX_CONCURRENT_ORDERS:-50}
+    order_timeout_seconds: ${ORDER_TIMEOUT:-30}
+    retry_attempts: ${RETRY_ATTEMPTS:-3}
+    retry_delay_ms: ${RETRY_DELAY_MS:-1000}
+    retry_backoff_multiplier: ${RETRY_BACKOFF:-2.0}
+
+  # Trading parameters
+  trading:
+    enabled_exchanges:
+      - ${EXCHANGE_1:-binance}
+      - ${EXCHANGE_2:-bybit}
+      - ${EXCHANGE_3:-okx}
+
+    # Symbol configuration
+    symbols: ${TRADING_SYMBOLS:-BTC/USDT,ETH/USDT,SOL/USDT,BNB/USDT}
+
+    # Timeframes for data collection
+    timeframes:
+      - ${TIMEFRAME_1:-1m}
+      - ${TIMEFRAME_2:-5m}
+      - ${TIMEFRAME_3:-15m}
+      - ${TIMEFRAME_4:-1h}
+      - ${TIMEFRAME_5:-4h}
+
+    # Order execution
+    default_order_type: ${DEFAULT_ORDER_TYPE:-LIMIT}
+    slippage_tolerance_bps: ${SLIPPAGE_TOLERANCE_BPS:-10}  # 0.1%
+    min_order_size_usdt: ${MIN_ORDER_SIZE_USDT:-10.0}
+    max_order_size_usdt: ${MAX_ORDER_SIZE_USDT:-100000.0}
+
+    # Position management
+    max_positions: ${MAX_POSITIONS:-20}
+    max_position_size_usdt: ${MAX_POSITION_SIZE_USDT:-50000.0}
+    position_size_percent: ${POSITION_SIZE_PERCENT:-2.0}  # 2% of portfolio per trade
+
+  # Performance monitoring
+  performance:
+    track_metrics: ${TRACK_METRICS:-true}
+    metrics_interval_seconds: ${METRICS_INTERVAL:-60}
+    alert_on_drawdown_percent: ${ALERT_DRAWDOWN_PERCENT:-5.0}
+    alert_on_loss_streak: ${ALERT_LOSS_STREAK:-5}
+
+  # Logging configuration
+  logging:
+    level: ${LOG_LEVEL:-INFO}  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    format: ${LOG_FORMAT:-json}  # json, text
+    destination: ${LOG_DESTINATION:-both}  # console, file, both
+    file_path: ${LOG_FILE_PATH:-/var/log/quantum_trader/bot.log}
+    max_file_size_mb: ${LOG_MAX_SIZE_MB:-100}
+    backup_count: ${LOG_BACKUP_COUNT:-10}
+    structured_logging: ${STRUCTURED_LOGGING:-true}
+
+  # Database configuration
+  database:
+    host: ${DB_HOST:-timescaledb}
+    port: ${DB_PORT:-5432}
+    name: ${DB_NAME:-quantum_trader}
+    user: ${DB_USER}  # Required from env
+    password: ${DB_PASSWORD}  # Required from env
+    ssl_mode: ${DB_SSL_MODE:-require}
+    pool_size: ${DB_POOL_SIZE:-20}
+    max_overflow: ${DB_MAX_OVERFLOW:-10}
+    pool_timeout_seconds: ${DB_POOL_TIMEOUT:-30}
+
+  # Cache configuration (Redis)
+  cache:
+    host: ${REDIS_HOST:-redis}
+    port: ${REDIS_PORT:-6379}
+    db: ${REDIS_DB:-0}
+    password: ${REDIS_PASSWORD}  # Required from env
+    ssl: ${REDIS_SSL:-true}
+    socket_timeout_seconds: ${REDIS_TIMEOUT:-5}
+    socket_connect_timeout_seconds: ${REDIS_CONNECT_TIMEOUT:-5}
+    max_connections: ${REDIS_MAX_CONNECTIONS:-50}
+
+  # API server configuration
+  api:
+    enabled: ${API_ENABLED:-true}
+    host: ${API_HOST:-0.0.0.0}
+    port: ${API_PORT:-8000}
+    workers: ${API_WORKERS:-4}
+    cors_origins: ${CORS_ORIGINS:-*}
+    rate_limit_per_minute: ${RATE_LIMIT:-100}
+    enable_docs: ${ENABLE_API_DOCS:-false}  # Disable in production
+
+  # WebSocket configuration
+  websocket:
+    enabled: ${WS_ENABLED:-true}
+    port: ${WS_PORT:-8001}
+    max_connections: ${WS_MAX_CONNECTIONS:-1000}
+    heartbeat_interval_seconds: ${WS_HEARTBEAT:-30}
+    message_size_limit_mb: ${WS_MSG_SIZE_LIMIT:-10}
+
+  # Security configuration
+  security:
+    enable_encryption: ${ENABLE_ENCRYPTION:-true}
+    encryption_key: ${ENCRYPTION_KEY}  # Required from env
+    jwt_secret: ${JWT_SECRET}  # Required from env
+    jwt_expiry_hours: ${JWT_EXPIRY_HOURS:-24}
+    api_key_rotation_days: ${API_KEY_ROTATION_DAYS:-90}
+    enable_2fa: ${ENABLE_2FA:-true}
+    max_login_attempts: ${MAX_LOGIN_ATTEMPTS:-5}
+    lockout_duration_minutes: ${LOCKOUT_DURATION:-30}
+
+  # Health checks
+  health:
+    enabled: ${HEALTH_CHECK_ENABLED:-true}
+    interval_seconds: ${HEALTH_CHECK_INTERVAL:-60}
+    timeout_seconds: ${HEALTH_CHECK_TIMEOUT:-10}
+    endpoints:
+      - database
+      - redis
+      - exchanges
+      - api
+
+  # Emergency shutdown
+  emergency:
+    enable_circuit_breaker: ${ENABLE_CIRCUIT_BREAKER:-true}
+    max_daily_loss_percent: ${MAX_DAILY_LOSS_PERCENT:-10.0}
+    max_drawdown_percent: ${MAX_DRAWDOWN_PERCENT:-15.0}
+    min_account_balance_usdt: ${MIN_ACCOUNT_BALANCE:-1000.0}
+    emergency_shutdown_webhook: ${EMERGENCY_WEBHOOK}  # Optional
+
+  # Backup and recovery
+  backup:
+    enabled: ${BACKUP_ENABLED:-true}
+    interval_hours: ${BACKUP_INTERVAL_HOURS:-6}
+    retention_days: ${BACKUP_RETENTION_DAYS:-30}
+    destination: ${BACKUP_DESTINATION:-s3://quantum-trader-backups}
+
+  # Feature flags
+  features:
+    enable_ai_models: ${ENABLE_AI:-true}
+    enable_arbitrage: ${ENABLE_ARBITRAGE:-true}
+    enable_market_making: ${ENABLE_MARKET_MAKING:-false}
+    enable_hft: ${ENABLE_HFT:-false}
+    enable_options: ${ENABLE_OPTIONS:-false}
+    enable_sentiment_analysis: ${ENABLE_SENTIMENT:-true}
+
+  # Maintenance
+  maintenance:
+    auto_restart_on_error: ${AUTO_RESTART:-true}
+    max_restart_attempts: ${MAX_RESTART_ATTEMPTS:-3}
+    maintenance_window_hour_utc: ${MAINTENANCE_HOUR:-4}  # 4 AM UTC
+    auto_update: ${AUTO_UPDATE:-false}

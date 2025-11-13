@@ -1,0 +1,162 @@
+# ============================================================================
+# Quantum Trader AI - Exchange Configuration
+# ============================================================================
+# Multi-exchange connectivity settings
+# ============================================================================
+
+exchanges:
+  # Binance Configuration
+  binance:
+    enabled: ${BINANCE_ENABLED:-true}
+    api_key: ${BINANCE_API_KEY}
+    secret: ${BINANCE_SECRET}
+    testnet: ${BINANCE_TESTNET:-false}
+    base_url: ${BINANCE_BASE_URL:-https://api.binance.com}
+    ws_url: ${BINANCE_WS_URL:-wss://stream.binance.com:9443}
+
+    rate_limits:
+      orders_per_second: ${BINANCE_ORDERS_PER_SEC:-10}
+      requests_per_minute: ${BINANCE_REQUESTS_PER_MIN:-1200}
+      weight_per_minute: ${BINANCE_WEIGHT_PER_MIN:-6000}
+
+    features:
+      spot_trading: true
+      futures_trading: ${BINANCE_FUTURES:-true}
+      margin_trading: ${BINANCE_MARGIN:-false}
+      options_trading: false
+
+    timeouts:
+      connect_timeout_ms: ${BINANCE_CONNECT_TIMEOUT:-10000}
+      read_timeout_ms: ${BINANCE_READ_TIMEOUT:-30000}
+      order_timeout_ms: ${BINANCE_ORDER_TIMEOUT:-5000}
+
+    fees:
+      maker_bps: ${BINANCE_MAKER_FEE:-10}  # 0.1%
+      taker_bps: ${BINANCE_TAKER_FEE:-10}  # 0.1%
+
+  # Bybit Configuration
+  bybit:
+    enabled: ${BYBIT_ENABLED:-true}
+    api_key: ${BYBIT_API_KEY}
+    secret: ${BYBIT_SECRET}
+    testnet: ${BYBIT_TESTNET:-false}
+    base_url: ${BYBIT_BASE_URL:-https://api.bybit.com}
+    ws_url: ${BYBIT_WS_URL:-wss://stream.bybit.com}
+
+    rate_limits:
+      orders_per_second: 10
+      requests_per_minute: 600
+
+    features:
+      spot_trading: true
+      futures_trading: true
+      margin_trading: false
+      options_trading: false
+
+    timeouts:
+      connect_timeout_ms: 10000
+      read_timeout_ms: 30000
+      order_timeout_ms: 5000
+
+    fees:
+      maker_bps: 10
+      taker_bps: 10
+
+  # OKX Configuration
+  okx:
+    enabled: ${OKX_ENABLED:-true}
+    api_key: ${OKX_API_KEY}
+    secret: ${OKX_SECRET}
+    passphrase: ${OKX_PASSPHRASE}
+    testnet: ${OKX_TESTNET:-false}
+    base_url: ${OKX_BASE_URL:-https://www.okx.com}
+    ws_url: ${OKX_WS_URL:-wss://ws.okx.com:8443/ws/v5/public}
+
+    rate_limits:
+      orders_per_second: 10
+      requests_per_minute: 480
+
+    features:
+      spot_trading: true
+      futures_trading: true
+      margin_trading: false
+      options_trading: ${OKX_OPTIONS:-false}
+
+    timeouts:
+      connect_timeout_ms: 10000
+      read_timeout_ms: 30000
+      order_timeout_ms: 5000
+
+    fees:
+      maker_bps: 8  # 0.08%
+      taker_bps: 10  # 0.1%
+
+  # KuCoin Configuration
+  kucoin:
+    enabled: ${KUCOIN_ENABLED:-false}
+    api_key: ${KUCOIN_API_KEY}
+    secret: ${KUCOIN_SECRET}
+    passphrase: ${KUCOIN_PASSPHRASE}
+    testnet: ${KUCOIN_TESTNET:-false}
+    base_url: ${KUCOIN_BASE_URL:-https://api.kucoin.com}
+
+    rate_limits:
+      orders_per_second: 10
+      requests_per_minute: 300
+
+    features:
+      spot_trading: true
+      futures_trading: false
+      margin_trading: false
+      options_trading: false
+
+    fees:
+      maker_bps: 10
+      taker_bps: 10
+
+  # Bitget Configuration
+  bitget:
+    enabled: ${BITGET_ENABLED:-false}
+    api_key: ${BITGET_API_KEY}
+    secret: ${BITGET_SECRET}
+    passphrase: ${BITGET_PASSPHRASE}
+    testnet: ${BITGET_TESTNET:-false}
+    base_url: ${BITGET_BASE_URL:-https://api.bitget.com}
+
+    rate_limits:
+      orders_per_second: 10
+      requests_per_minute: 300
+
+    features:
+      spot_trading: true
+      futures_trading: false
+      margin_trading: false
+      options_trading: false
+
+    fees:
+      maker_bps: 10
+      taker_bps: 10
+
+# Global exchange settings
+global:
+  retry_policy:
+    max_retries: ${EXCHANGE_MAX_RETRIES:-3}
+    retry_delay_ms: ${EXCHANGE_RETRY_DELAY:-1000}
+    exponential_backoff: ${EXCHANGE_EXPONENTIAL_BACKOFF:-true}
+    backoff_multiplier: ${EXCHANGE_BACKOFF_MULTIPLIER:-2.0}
+
+  websocket:
+    auto_reconnect: ${WS_AUTO_RECONNECT:-true}
+    reconnect_delay_ms: ${WS_RECONNECT_DELAY:-5000}
+    ping_interval_ms: ${WS_PING_INTERVAL:-30000}
+    ping_timeout_ms: ${WS_PING_TIMEOUT:-10000}
+
+  data_collection:
+    orderbook_depth: ${ORDERBOOK_DEPTH:-20}
+    trades_limit: ${TRADES_LIMIT:-100}
+    ohlcv_limit: ${OHLCV_LIMIT:-500}
+
+  health_check:
+    interval_seconds: ${EXCHANGE_HEALTH_INTERVAL:-60}
+    timeout_seconds: ${EXCHANGE_HEALTH_TIMEOUT:-10}
+    failure_threshold: ${EXCHANGE_FAILURE_THRESHOLD:-3}

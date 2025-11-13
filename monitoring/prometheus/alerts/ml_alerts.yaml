@@ -1,0 +1,456 @@
+---
+# Prometheus Alerting Rules for ML System
+# Monitors model training, inference, performance, and data quality
+
+groups:
+  - name: ml_training_alerts
+    interval: 30s
+    rules:
+      # Training job health alerts
+      - alert: MLTrainingJobFailed
+        expr: |
+          increase(ml_training_jobs_failed_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_training
+        annotations:
+          summary: "ML training job failed"
+          description: "ML training job {{ $labels.job_name }} failed at {{ $value }} times in the last 5 minutes"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_training_failure"
+
+      - alert: MLTrainingJobTimeout
+        expr: |
+          ml_training_duration_seconds > (${ML_TRAINING_MAX_DURATION:-8} * 3600)
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_training
+        annotations:
+          summary: "ML training job exceeded maximum duration"
+          description: "Training job {{ $labels.job_name }} duration is {{ $value | humanizeDuration }} which exceeds max of ${ML_TRAINING_MAX_DURATION:-8} hours"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_training_timeout"
+
+      - alert: MLTrainingDatasetEmpty
+        expr: |
+          ml_training_dataset_samples == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_training
+        annotations:
+          summary: "ML training dataset is empty"
+          description: "Training dataset for {{ $labels.dataset_name }} has no samples available"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_empty_dataset"
+
+      - alert: MLTrainingHighMemoryUsage
+        expr: |
+          (ml_training_memory_usage_bytes / ml_training_memory_limit_bytes) > 0.95
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_training
+        annotations:
+          summary: "ML training process using excessive memory"
+          description: "Training process {{ $labels.process_id }} using {{ $value | humanizePercentage }} of memory limit"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_memory_warning"
+
+      - alert: MLTrainingGPUFailure
+        expr: |
+          ml_training_gpu_available == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: ml_training
+        annotations:
+          summary: "GPU unavailable for ML training"
+          description: "GPU {{ $labels.gpu_id }} is unavailable for training. Error: {{ $labels.error }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_gpu_failure"
+
+      - alert: MLTrainingLowAccuracy
+        expr: |
+          ml_training_validation_accuracy < 0.70
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_training
+        annotations:
+          summary: "ML model validation accuracy below threshold"
+          description: "Model {{ $labels.model_name }} validation accuracy is {{ $value | humanizePercentage }} (threshold: 70%)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_low_accuracy"
+
+      - alert: MLTrainingMetricsInconsistent
+        expr: |
+          abs(ml_training_train_loss - ml_training_validation_loss) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_training
+        annotations:
+          summary: "Large discrepancy between training and validation metrics"
+          description: "Model {{ $labels.model_name }} shows potential overfitting: train_loss={{ $value }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_metrics_divergence"
+
+  - name: ml_inference_alerts
+    interval: 30s
+    rules:
+      # Inference service health
+      - alert: MLInferenceServiceDown
+        expr: |
+          up{job="ml-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: ml_inference
+        annotations:
+          summary: "ML inference service is down"
+          description: "ML inference service at {{ $labels.instance }} is unavailable"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_service_down"
+
+      - alert: MLInferenceLatencyHigh
+        expr: |
+          histogram_quantile(0.99, ml_inference_latency_seconds) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_inference
+        annotations:
+          summary: "ML inference latency exceeds threshold"
+          description: "99th percentile inference latency is {{ $value | humanizeDuration }} (threshold: 500ms)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_high_latency"
+
+      - alert: MLInferenceP99LatencyCritical
+        expr: |
+          histogram_quantile(0.99, ml_inference_latency_seconds) > 1.0
+        for: 3m
+        labels:
+          severity: critical
+          component: ml_inference
+        annotations:
+          summary: "ML inference latency critically high"
+          description: "99th percentile inference latency is {{ $value | humanizeDuration }} (critical: >1s)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_critical_latency"
+
+      - alert: MLInferenceQueueSize
+        expr: |
+          ml_inference_queue_size > ${ML_INFERENCE_MAX_QUEUE:-10000}
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_inference
+        annotations:
+          summary: "ML inference request queue is overflowing"
+          description: "Inference queue size is {{ $value }} (max: ${ML_INFERENCE_MAX_QUEUE:-10000})"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_queue_overflow"
+
+      - alert: MLInferenceErrorRate
+        expr: |
+          rate(ml_inference_errors_total[5m]) / rate(ml_inference_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_inference
+        annotations:
+          summary: "ML inference error rate elevated"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_high_error_rate"
+
+      - alert: MLInferenceMemoryLeak
+        expr: |
+          rate(ml_inference_memory_usage_bytes[30m]) > 1000000
+        for: 15m
+        labels:
+          severity: warning
+          component: ml_inference
+        annotations:
+          summary: "ML inference process showing memory growth pattern"
+          description: "Memory growing at {{ $value | humanize }}B/sec - possible memory leak"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_memory_leak"
+
+      - alert: MLModelNotLoaded
+        expr: |
+          ml_inference_model_loaded == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_inference
+        annotations:
+          summary: "ML model not loaded in inference service"
+          description: "Model {{ $labels.model_name }} version {{ $labels.model_version }} is not loaded"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_model_not_loaded"
+
+  - name: ml_performance_alerts
+    interval: 30s
+    rules:
+      # Model performance degradation
+      - alert: MLModelAccuracyDegraded
+        expr: |
+          ml_model_accuracy < 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_performance
+        annotations:
+          summary: "ML model accuracy has degraded"
+          description: "Model {{ $labels.model_name }} accuracy is {{ $value | humanizePercentage }} (threshold: 85%)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_accuracy_degradation"
+
+      - alert: MLModelPrecisionDegraded
+        expr: |
+          ml_model_precision < 0.80
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_performance
+        annotations:
+          summary: "ML model precision has degraded"
+          description: "Model {{ $labels.model_name }} precision is {{ $value | humanizePercentage }} (threshold: 80%)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_precision_degradation"
+
+      - alert: MLModelRecallDegraded
+        expr: |
+          ml_model_recall < 0.75
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_performance
+        annotations:
+          summary: "ML model recall has degraded"
+          description: "Model {{ $labels.model_name }} recall is {{ $value | humanizePercentage }} (threshold: 75%)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_recall_degradation"
+
+      - alert: MLAUCRocDegraded
+        expr: |
+          ml_model_auc_roc < 0.88
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_performance
+        annotations:
+          summary: "ML model AUC-ROC has degraded"
+          description: "Model {{ $labels.model_name }} AUC-ROC is {{ $value | humanizePercentage }} (threshold: 88%)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_auc_degradation"
+
+  - name: ml_data_quality_alerts
+    interval: 30s
+    rules:
+      # Data drift detection
+      - alert: MLDataDriftDetected
+        expr: |
+          ml_data_drift_detected == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_data_quality
+        annotations:
+          summary: "Data drift detected in ML pipeline"
+          description: "Data drift detected in {{ $labels.dataset_name }} using {{ $labels.drift_method }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_data_drift"
+
+      - alert: MLDataDriftCritical
+        expr: |
+          ml_data_drift_score > 0.2
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_data_quality
+        annotations:
+          summary: "Critical data drift in ML pipeline"
+          description: "Data drift score {{ $value | humanizePercentage }} exceeds critical threshold"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_critical_drift"
+
+      - alert: MLConceptDriftDetected
+        expr: |
+          ml_concept_drift_detected == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_data_quality
+        annotations:
+          summary: "Concept drift detected in ML model"
+          description: "Concept drift detected for model {{ $labels.model_name }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_concept_drift"
+
+      - alert: MLMissingDataPoints
+        expr: |
+          ml_dataset_missing_values_ratio > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_data_quality
+        annotations:
+          summary: "High missing values ratio in dataset"
+          description: "Dataset {{ $labels.dataset_name }} has {{ $value | humanizePercentage }} missing values"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_missing_data"
+
+      - alert: MLDataOutliersHigh
+        expr: |
+          ml_dataset_outliers_ratio > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_data_quality
+        annotations:
+          summary: "High outlier ratio detected in dataset"
+          description: "Dataset {{ $labels.dataset_name }} has {{ $value | humanizePercentage }} outliers"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_high_outliers"
+
+  - name: ml_model_registry_alerts
+    interval: 30s
+    rules:
+      # Model registry and versioning
+      - alert: MLModelRegistryUnresponsive
+        expr: |
+          up{job="ml-registry"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_registry
+        annotations:
+          summary: "ML model registry is unresponsive"
+          description: "Model registry at {{ $labels.instance }} is unavailable"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_registry_down"
+
+      - alert: MLArtifactStorageQuotaExceeded
+        expr: |
+          (ml_artifact_storage_used_bytes / ml_artifact_storage_total_bytes) > 0.95
+        for: 10m
+        labels:
+          severity: warning
+          component: ml_registry
+        annotations:
+          summary: "ML artifact storage quota nearly exceeded"
+          description: "Artifact storage usage is {{ $value | humanizePercentage }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_storage_quota"
+
+      - alert: MLModelNotVersioned
+        expr: |
+          ml_models_without_version > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_registry
+        annotations:
+          summary: "ML models found without version information"
+          description: "Found {{ $value }} models without version tracking"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_unversioned_models"
+
+  - name: ml_distributed_training_alerts
+    interval: 30s
+    rules:
+      # Distributed training alerts
+      - alert: MLDistributedTrainingNodeFailure
+        expr: |
+          increase(ml_training_node_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: ml_distributed
+        annotations:
+          summary: "Node failure during distributed training"
+          description: "Training node {{ $labels.node_id }} failed"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_node_failure"
+
+      - alert: MLDistributedTrainingNetworkLatency
+        expr: |
+          ml_training_inter_node_latency_ms > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_distributed
+        annotations:
+          summary: "High latency detected in distributed training communication"
+          description: "Inter-node latency is {{ $value }}ms (threshold: 100ms)"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_network_latency"
+
+      - alert: MLDistributedGradientSyncFailure
+        expr: |
+          increase(ml_training_gradient_sync_failures[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_distributed
+        annotations:
+          summary: "Gradient synchronization failure in distributed training"
+          description: "Failed to synchronize gradients across training nodes"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_gradient_sync_failure"
+
+  - name: ml_resource_alerts
+    interval: 30s
+    rules:
+      # Resource utilization
+      - alert: MLGPUTemperatureCritical
+        expr: |
+          ml_gpu_temperature_celsius > 85
+        for: 5m
+        labels:
+          severity: critical
+          component: ml_resources
+        annotations:
+          summary: "GPU temperature critical"
+          description: "GPU {{ $labels.gpu_id }} temperature is {{ $value }}°C"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_gpu_temperature"
+
+      - alert: MLGPUMemoryExhausted
+        expr: |
+          (ml_gpu_memory_used_bytes / ml_gpu_memory_total_bytes) > 0.98
+        for: 2m
+        labels:
+          severity: critical
+          component: ml_resources
+        annotations:
+          summary: "GPU memory nearly exhausted"
+          description: "GPU {{ $labels.gpu_id }} memory usage is {{ $value | humanizePercentage }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_gpu_memory_full"
+
+      - alert: MLCPUSpikeDuringInference
+        expr: |
+          rate(process_cpu_seconds_total{job="ml-service"}[1m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_resources
+        annotations:
+          summary: "CPU usage spike during inference"
+          description: "CPU usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_cpu_spike"
+
+  - name: ml_compliance_alerts
+    interval: 30s
+    rules:
+      # Compliance and audit
+      - alert: MLUnauthorizedModelAccess
+        expr: |
+          increase(ml_unauthorized_access_attempts_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: ml_security
+        annotations:
+          summary: "Unauthorized access attempt to ML model"
+          description: "{{ $value }} unauthorized access attempts detected"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_unauthorized_access"
+
+      - alert: MLAuditLoggingFailure
+        expr: |
+          ml_audit_logging_failures > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: ml_security
+        annotations:
+          summary: "ML audit logging failure detected"
+          description: "Failed to write audit log for {{ $value }} events"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_audit_logging"
+
+      - alert: MLModelSignatureVerificationFailed
+        expr: |
+          increase(ml_signature_verification_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: ml_security
+        annotations:
+          summary: "Model signature verification failed"
+          description: "Failed to verify model integrity for {{ $labels.model_name }}"
+          runbook: "https://wiki.internal.company.com/runbooks/ml_signature_failure"

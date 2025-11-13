@@ -1,0 +1,306 @@
+---
+# ============================================================================
+# Quantum Trader AI - Deployment Playbook
+# ============================================================================
+# Production deployment playbook for institutional trading system
+# ============================================================================
+
+- name: Deploy Quantum Trader AI Trading System
+  hosts: trading_servers
+  become: true
+  gather_facts: true
+  serial: "{{ deployment_serial | default('1') }}"  # Rolling deployment
+
+  vars:
+    app_name: quantum-trader-ai
+    app_user: "{{ lookup('env', 'APP_USER') | default('quantum') }}"
+    app_group: "{{ lookup('env', 'APP_GROUP') | default('quantum') }}"
+    app_dir: "{{ lookup('env', 'APP_DIR') | default('/opt/quantum_trader_ai') }}"
+    config_dir: "{{ app_dir }}/config"
+    log_dir: "{{ lookup('env', 'LOG_DIR') | default('/var/log/quantum_trader') }}"
+    data_dir: "{{ lookup('env', 'DATA_DIR') | default('/var/lib/quantum_trader') }}"
+
+    # Docker configuration
+    docker_registry: "{{ lookup('env', 'DOCKER_REGISTRY') | default('ghcr.io') }}"
+    docker_image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest') }}"
+    docker_network: "{{ lookup('env', 'DOCKER_NETWORK') | default('quantum_trader_net') }}"
+
+    # Deployment configuration
+    deployment_strategy: "{{ lookup('env', 'DEPLOYMENT_STRATEGY') | default('blue_green') }}"
+    health_check_retries: "{{ lookup('env', 'HEALTH_CHECK_RETRIES') | default('30') }}"
+    health_check_delay: "{{ lookup('env', 'HEALTH_CHECK_DELAY') | default('10') }}"
+
+    # Backup configuration
+    backup_before_deploy: "{{ lookup('env', 'BACKUP_BEFORE_DEPLOY') | default('true') }}"
+    backup_retention_days: "{{ lookup('env', 'BACKUP_RETENTION_DAYS') | default('30') }}"
+
+  pre_tasks:
+    - name: Validate deployment requirements
+      assert:
+        that:
+          - ansible_os_family == "Debian" or ansible_os_family == "RedHat"
+          - ansible_distribution_major_version | int >= 20
+          - ansible_memtotal_mb >= 8192
+        fail_msg: "Server does not meet minimum requirements"
+      tags: [validate]
+
+    - name: Check if maintenance mode is enabled
+      stat:
+        path: "{{ app_dir }}/.maintenance"
+      register: maintenance_mode
+      tags: [always]
+
+    - name: Fail if not in maintenance mode (production safety)
+      fail:
+        msg: "Maintenance mode must be enabled for production deployment"
+      when:
+        - inventory_hostname in groups['production']
+        - not maintenance_mode.stat.exists
+      tags: [safety]
+
+  tasks:
+    # ========================================================================
+    # Pre-deployment backup
+    # ========================================================================
+
+    - name: Create backup directory
+      file:
+        path: "{{ data_dir }}/backups/{{ ansible_date_time.iso8601_basic_short }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0750'
+      when: backup_before_deploy | bool
+      tags: [backup]
+
+    - name: Backup current deployment
+      archive:
+        path: "{{ app_dir }}"
+        dest: "{{ data_dir }}/backups/{{ ansible_date_time.iso8601_basic_short }}/app_backup.tar.gz"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0640'
+      when: backup_before_deploy | bool
+      tags: [backup]
+
+    - name: Backup database
+      shell: |
+        docker exec quantum_trader_timescaledb pg_dump \
+          -U {{ lookup('env', 'DB_USER') }} \
+          -d {{ lookup('env', 'DB_NAME') }} \
+          | gzip > {{ data_dir }}/backups/{{ ansible_date_time.iso8601_basic_short }}/db_backup.sql.gz
+      when: backup_before_deploy | bool
+      tags: [backup]
+
+    # ========================================================================
+    # Pull new Docker images
+    # ========================================================================
+
+    - name: Login to Docker registry
+      docker_login:
+        registry: "{{ docker_registry }}"
+        username: "{{ lookup('env', 'DOCKER_USERNAME') }}"
+        password: "{{ lookup('env', 'DOCKER_PASSWORD') }}"
+      tags: [docker]
+
+    - name: Pull latest Docker images
+      docker_image:
+        name: "{{ docker_registry }}/quantum-trader/{{ item }}"
+        tag: "{{ docker_image_tag }}"
+        source: pull
+        force_source: true
+      loop:
+        - bot
+        - ml-engine
+        - dashboard
+        - api
+      tags: [docker]
+
+    # ========================================================================
+    # Update configuration files
+    # ========================================================================
+
+    - name: Copy updated configuration files
+      synchronize:
+        src: "{{ playbook_dir }}/../../config/"
+        dest: "{{ config_dir }}/"
+        delete: false
+        checksum: true
+      tags: [config]
+
+    - name: Validate configuration files
+      command: "{{ app_dir }}/scripts/validate_config.sh {{ config_dir }}"
+      register: config_validation
+      failed_when: config_validation.rc != 0
+      tags: [config, validate]
+
+    - name: Set proper permissions on config files
+      file:
+        path: "{{ config_dir }}"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0750'
+        recurse: true
+      tags: [config]
+
+    # ========================================================================
+    # Deploy containers (Blue-Green strategy)
+    # ========================================================================
+
+    - name: Stop monitoring temporarily
+      systemd:
+        name: prometheus-node-exporter
+        state: stopped
+      when: deployment_strategy == 'blue_green'
+      tags: [deploy]
+
+    - name: Start new containers (green)
+      docker_compose:
+        project_src: "{{ app_dir }}"
+        project_name: "{{ app_name }}_green"
+        files:
+          - docker-compose.yml
+          - docker-compose.green.yml
+        state: present
+        pull: true
+      environment:
+        COMPOSE_PROJECT_NAME: "{{ app_name }}_green"
+        IMAGE_TAG: "{{ docker_image_tag }}"
+      tags: [deploy]
+
+    # ========================================================================
+    # Health checks
+    # ========================================================================
+
+    - name: Wait for application to be ready
+      uri:
+        url: "http://localhost:{{ lookup('env', 'API_PORT') | default('8000') }}/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      until: health_check.status == 200
+      retries: "{{ health_check_retries }}"
+      delay: "{{ health_check_delay }}"
+      tags: [health]
+
+    - name: Run smoke tests
+      command: "{{ app_dir }}/scripts/smoke_tests.sh"
+      register: smoke_tests
+      failed_when: smoke_tests.rc != 0
+      tags: [health, test]
+
+    # ========================================================================
+    # Switch traffic (Blue-Green)
+    # ========================================================================
+
+    - name: Update load balancer to point to green deployment
+      template:
+        src: "{{ playbook_dir }}/../templates/nginx_upstream.j2"
+        dest: /etc/nginx/conf.d/quantum_trader_upstream.conf
+      notify: reload nginx
+      when: deployment_strategy == 'blue_green'
+      tags: [deploy, loadbalancer]
+
+    - name: Wait for traffic switch
+      pause:
+        seconds: 30
+      when: deployment_strategy == 'blue_green'
+      tags: [deploy]
+
+    # ========================================================================
+    # Stop old containers (Blue)
+    # ========================================================================
+
+    - name: Stop old containers
+      docker_compose:
+        project_src: "{{ app_dir }}"
+        project_name: "{{ app_name }}_blue"
+        state: absent
+      when: deployment_strategy == 'blue_green'
+      tags: [cleanup]
+
+    - name: Rename green to blue for next deployment
+      command: docker rename {{ app_name }}_green_{{ item }} {{ app_name }}_blue_{{ item }}
+      loop:
+        - bot_1
+        - ml_1
+        - api_1
+        - dashboard_1
+      when: deployment_strategy == 'blue_green'
+      ignore_errors: true
+      tags: [cleanup]
+
+    # ========================================================================
+    # Post-deployment tasks
+    # ========================================================================
+
+    - name: Restart monitoring
+      systemd:
+        name: prometheus-node-exporter
+        state: started
+      tags: [monitoring]
+
+    - name: Clean up old Docker images
+      docker_prune:
+        images: true
+        images_filters:
+          dangling: false
+          until: 24h
+      tags: [cleanup]
+
+    - name: Clean up old backups
+      find:
+        paths: "{{ data_dir }}/backups"
+        age: "{{ backup_retention_days }}d"
+        recurse: true
+      register: old_backups
+      tags: [cleanup]
+
+    - name: Remove old backups
+      file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_backups.files }}"
+      tags: [cleanup]
+
+    - name: Send deployment notification
+      uri:
+        url: "{{ lookup('env', 'SLACK_WEBHOOK_URL') }}"
+        method: POST
+        body_format: json
+        body:
+          text: "Deployment completed successfully on {{ inventory_hostname }}"
+          username: "Quantum Trader Deployment Bot"
+          icon_emoji: ":rocket:"
+      when: lookup('env', 'SLACK_WEBHOOK_URL') | default('') != ''
+      tags: [notification]
+
+  handlers:
+    - name: reload nginx
+      systemd:
+        name: nginx
+        state: reloaded
+
+  post_tasks:
+    - name: Verify deployment
+      uri:
+        url: "http://localhost:{{ lookup('env', 'API_PORT') | default('8000') }}/api/v1/status"
+        method: GET
+        return_content: true
+      register: final_check
+      failed_when: final_check.json.status != 'operational'
+      tags: [verify]
+
+    - name: Deployment summary
+      debug:
+        msg: |
+          ========================================
+          Deployment Summary
+          ========================================
+          Host: {{ inventory_hostname }}
+          Image Tag: {{ docker_image_tag }}
+          Strategy: {{ deployment_strategy }}
+          Status: SUCCESS
+          Time: {{ ansible_date_time.iso8601 }}
+          ========================================
+      tags: [always]

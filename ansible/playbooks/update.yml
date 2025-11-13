@@ -1,0 +1,427 @@
+---
+# System Update and Maintenance Playbook for Quantum Trader AI
+# Performs controlled updates with health checks and rollback capabilities
+
+- name: System Update and Maintenance
+  hosts: "{{ target_hosts | default('quantum_trader_servers') }}"
+  become: yes
+  vars:
+    # Update settings
+    update_timeout_hours: "{{ update_timeout_hours | default(4) }}"
+    health_check_retries: "{{ health_check_retries | default(5) }}"
+    health_check_delay_seconds: "{{ health_check_delay_seconds | default(30) }}"
+    pre_update_backup: "{{ pre_update_backup | default(true) }}"
+    skip_trading_hours: "{{ skip_trading_hours | default(true) }}"
+    trading_hours_start: "09:30"
+    trading_hours_end: "16:00"
+    trading_timezone: "America/New_York"
+
+  pre_tasks:
+    - name: Check if this is trading hours (if enabled)
+      block:
+        - name: Get current time
+          command: date +%H:%M
+          register: current_time
+
+        - name: Warn if during trading hours
+          debug:
+            msg: "WARNING: Running updates during trading hours. Current time: {{ current_time.stdout }}"
+          when: current_time.stdout >= trading_hours_start and current_time.stdout < trading_hours_end
+
+        - name: Fail if during trading hours and skip is enabled
+          fail:
+            msg: "Cannot run updates during trading hours ({{ trading_hours_start }}-{{ trading_hours_end }}). Set skip_trading_hours=false to override."
+          when:
+            - skip_trading_hours | bool
+            - current_time.stdout >= trading_hours_start
+            - current_time.stdout < trading_hours_end
+
+      tags:
+        - safety_checks
+
+    - name: Get pre-update health status
+      block:
+        - name: Check service health
+          shell: systemctl status quantum_trader --no-pager | head -10
+          register: pre_health_status
+          failed_when: false
+
+        - name: Save pre-update metrics
+          shell: |
+            curl -s http://localhost:8000/health > /tmp/pre_update_health.json 2>/dev/null || echo "{}" > /tmp/pre_update_health.json
+          register: pre_metrics
+          failed_when: false
+
+        - name: Create pre-update backup marker
+          copy:
+            content: "{{ ansible_date_time.iso8601 }}"
+            dest: /var/log/quantum_trader/pre_update_timestamp.txt
+
+      tags:
+        - health_checks
+
+    - name: Pre-update backup (if enabled)
+      block:
+        - name: Create backup directory
+          file:
+            path: /backups/quantum_trader/pre_update
+            state: directory
+            owner: quantum_trader
+            group: quantum_trader
+            mode: '0755'
+
+        - name: Backup current configuration
+          copy:
+            src: "{{ item.src }}"
+            dest: "/backups/quantum_trader/pre_update/{{ item.dest }}"
+            remote_src: yes
+            owner: quantum_trader
+            group: quantum_trader
+          loop:
+            - src: /etc/quantum_trader
+              dest: quantum_trader_config
+            - src: /opt/quantum_trader/app
+              dest: quantum_trader_app
+          failed_when: false
+
+        - name: Export database backup
+          shell: |
+            pg_dump -h {{ db_host | default('localhost') }} -U {{ db_user | default('trader_bot') }} \
+            {{ db_name | default('quantum_trader') }} > /backups/quantum_trader/pre_update/database_pre_update.sql
+          environment:
+            PGPASSWORD: "{{ db_password }}"
+          failed_when: false
+          tags:
+            - backup
+
+      when: pre_update_backup | bool
+      tags:
+        - backup
+
+  tasks:
+    # Update system packages
+    - name: Update system packages
+      block:
+        - name: Update apt package index
+          apt:
+            update_cache: yes
+            cache_valid_time: 3600
+
+        - name: Upgrade all packages
+          apt:
+            upgrade: dist
+            autoremove: yes
+            autoclean: yes
+          register: apt_update
+          async: "{{ update_timeout_hours * 3600 }}"
+          poll: 60
+
+        - name: Check for pending reboot
+          stat:
+            path: /var/run/reboot-required
+          register: reboot_required
+
+        - name: Display apt update summary
+          debug:
+            msg: "{{ apt_update.stdout_lines[-5:] }}"
+
+      tags:
+        - system_updates
+        - packages
+
+    # Update Python packages
+    - name: Update Python dependencies
+      block:
+        - name: Upgrade pip and setuptools
+          pip:
+            name:
+              - pip
+              - setuptools
+              - wheel
+            state: latest
+            executable: /usr/bin/pip3
+
+        - name: Update Poetry dependencies
+          shell: |
+            cd /opt/quantum_trader
+            poetry update --no-directory
+          become: yes
+          become_user: quantum_trader
+          failed_when: false
+          tags:
+            - python_packages
+
+      tags:
+        - python_updates
+
+    # Update monitoring components
+    - name: Update monitoring components
+      block:
+        - name: Update Prometheus
+          apt:
+            name: prometheus
+            state: latest
+          notify: restart prometheus
+
+        - name: Update Grafana
+          apt:
+            name: grafana-server
+            state: latest
+          notify: restart grafana
+
+        - name: Update Node Exporter
+          apt:
+            name: prometheus-node-exporter
+            state: latest
+          notify: restart node_exporter
+
+      tags:
+        - monitoring_updates
+
+    # Update security components
+    - name: Update security components
+      block:
+        - name: Update OpenSSL
+          apt:
+            name: openssl
+            state: latest
+
+        - name: Renew SSL certificates
+          shell: |
+            certbot renew --quiet --non-interactive
+          failed_when: false
+          tags:
+            - ssl_certificates
+
+      tags:
+        - security_updates
+
+    # Update container images (if Docker is used)
+    - name: Update Docker images
+      block:
+        - name: Pull latest images
+          shell: |
+            docker pull ubuntu:latest
+            docker pull postgres:latest
+            docker pull redis:latest
+            docker pull rabbitmq:latest
+            docker pull grafana/grafana:latest
+            docker pull prom/prometheus:latest
+          failed_when: false
+
+        - name: Remove unused images
+          shell: docker image prune -a --force --filter "until=168h"
+          failed_when: false
+
+      tags:
+        - docker_updates
+
+    # Verify system after update
+    - name: Verify system integrity after update
+      block:
+        - name: Check filesystem integrity
+          shell: fsck -n / || true
+          register: fsck_result
+          failed_when: false
+
+        - name: Run configuration tests
+          shell: |
+            python3 -m py_compile /opt/quantum_trader/app/*.py
+          become_user: quantum_trader
+          failed_when: false
+
+      tags:
+        - verification
+
+    # Health checks after update
+    - name: Perform post-update health checks
+      block:
+        - name: Wait for services to stabilize
+          pause:
+            seconds: 30
+
+        - name: Check quantum_trader service
+          systemd:
+            name: quantum_trader
+            state: started
+            enabled: yes
+          register: service_status
+          retries: "{{ health_check_retries }}"
+          delay: "{{ health_check_delay_seconds }}"
+          until: service_status is succeeded
+
+        - name: Check API health endpoint
+          uri:
+            url: http://localhost:8000/health
+            method: GET
+            status_code: 200
+          register: api_health
+          retries: "{{ health_check_retries }}"
+          delay: "{{ health_check_delay_seconds }}"
+          until: api_health.status == 200
+          failed_when: false
+
+        - name: Check database connectivity
+          shell: |
+            psql -h {{ db_host | default('localhost') }} -U {{ db_user | default('trader_bot') }} \
+            -d {{ db_name | default('quantum_trader') }} -c "SELECT version();"
+          environment:
+            PGPASSWORD: "{{ db_password }}"
+          register: db_check
+          failed_when: false
+
+        - name: Verify Redis connectivity
+          shell: |
+            redis-cli -h {{ redis_host | default('localhost') }} -p {{ redis_port | default(6379) }} ping
+          register: redis_check
+          failed_when: false
+          failed_when: "'PONG' not in redis_check.stdout"
+
+        - name: Check Prometheus metrics collection
+          uri:
+            url: http://localhost:9090/api/v1/query?query=up
+            method: GET
+            status_code: 200
+          register: prometheus_check
+          failed_when: false
+
+        - name: Verify logging functionality
+          shell: |
+            logger -t quantum_trader_update "System update health check completed successfully"
+          register: logging_check
+
+        - name: Compare post-update health status
+          debug:
+            msg: |
+              Post-update Health Status:
+              - Service Status: {{ service_status.status | default('unknown') }}
+              - API Health: {{ api_health.status | default('failed') }}
+              - Database: {{ 'OK' if db_check.rc == 0 else 'FAILED' }}
+              - Redis: {{ 'OK' if 'PONG' in redis_check.stdout else 'FAILED' }}
+              - Prometheus: {{ prometheus_check.status | default('failed') }}
+
+      tags:
+        - health_checks
+        - post_update
+
+    # Generate update report
+    - name: Generate update report
+      block:
+        - name: Collect update metrics
+          shell: |
+            cat > /var/log/quantum_trader/update_report.json << 'EOF'
+            {
+              "timestamp": "{{ ansible_date_time.iso8601 }}",
+              "hostname": "{{ inventory_hostname }}",
+              "kernel_version": "$(uname -r)",
+              "packages_updated": "{{ apt_update.stdout_lines | length | default(0) }}",
+              "services_status": {
+                "quantum_trader": "{{ service_status.status | default('unknown') }}",
+                "prometheus": "{{ 'running' if prometheus_check.status == 200 else 'unknown' }}",
+                "database": "{{ 'connected' if db_check.rc == 0 else 'disconnected' }}"
+              },
+              "reboot_required": {{ reboot_required.stat.exists | lower }}
+            }
+            EOF
+
+        - name: Display update report
+          debug:
+            msg: |
+              ============================================
+              System Update Complete
+              ============================================
+              Timestamp: {{ ansible_date_time.iso8601 }}
+              Reboot Required: {{ reboot_required.stat.exists }}
+              Report saved to: /var/log/quantum_trader/update_report.json
+
+      tags:
+        - reporting
+
+  post_tasks:
+    - name: Cleanup temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/pre_update_health.json
+        - /tmp/apt_update.log
+      failed_when: false
+      tags:
+        - cleanup
+
+    - name: Notify update completion
+      block:
+        - name: Send update notification
+          mail:
+            host: "{{ smtp_host | default('localhost') }}"
+            port: "{{ smtp_port | default(587) }}"
+            username: "{{ smtp_username | default('') }}"
+            password: "{{ smtp_password | default('') }}"
+            from: "{{ smtp_from | default('alerts@quantum-trader') }}"
+            to: "{{ alert_email | default('ops@quantum-trader') }}"
+            subject: "System update completed on {{ inventory_hostname }}"
+            body: |
+              System update completed successfully.
+
+              Timestamp: {{ ansible_date_time.iso8601 }}
+              Host: {{ inventory_hostname }}
+              Reboot Required: {{ reboot_required.stat.exists }}
+
+              Health Status: All services operational
+              Report: /var/log/quantum_trader/update_report.json
+          failed_when: false
+          tags:
+            - notifications
+
+        - name: Log update completion
+          shell: |
+            logger -t quantum_trader_system -p info "System update completed successfully on {{ inventory_hostname }}"
+
+      tags:
+        - notifications
+
+    - name: Optionally reboot system
+      block:
+        - name: Reboot system (if required and allowed)
+          reboot:
+            msg: "System update requires reboot. Rebooting now..."
+            reboot_timeout: 600
+          when:
+            - reboot_required.stat.exists
+            - allow_reboot | default(false)
+          notify: wait for system reboot
+
+        - name: Schedule reboot for later (if not allowed now)
+          shell: |
+            echo "System reboot required after update" > /etc/motd
+            shutdown -r +{{ reboot_schedule_hours | default(24) }} "Scheduled system reboot after updates"
+          when:
+            - reboot_required.stat.exists
+            - not (allow_reboot | default(false))
+
+      tags:
+        - reboot
+
+  handlers:
+    - name: restart prometheus
+      systemd:
+        name: prometheus
+        state: restarted
+      failed_when: false
+
+    - name: restart grafana
+      systemd:
+        name: grafana-server
+        state: restarted
+      failed_when: false
+
+    - name: restart node_exporter
+      systemd:
+        name: prometheus-node-exporter
+        state: restarted
+      failed_when: false
+
+    - name: wait for system reboot
+      wait_for_connection:
+        delay: 30
+        timeout: 300

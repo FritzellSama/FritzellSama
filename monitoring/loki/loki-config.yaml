@@ -1,0 +1,70 @@
+# Loki Configuration for Quantum Trader AI
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: ${LOKI_LOG_LEVEL:-info}
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-shipper-active
+    cache_location: /loki/boltdb-shipper-cache
+    cache_ttl: 24h
+    shared_store: filesystem
+  filesystem:
+    directory: /loki/chunks
+
+compactor:
+  working_directory: /loki/boltdb-shipper-compactor
+  shared_store: filesystem
+
+limits_config:
+  retention_period: ${LOKI_RETENTION:-720h}
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  ingestion_rate_mb: ${LOKI_INGESTION_RATE_MB:-4}
+  ingestion_burst_size_mb: ${LOKI_INGESTION_BURST_MB:-6}
+  max_streams_per_user: ${LOKI_MAX_STREAMS:-10000}
+  max_query_length: ${LOKI_MAX_QUERY_LENGTH:-721h}
+
+chunk_store_config:
+  max_look_back_period: ${LOKI_MAX_LOOKBACK:-0s}
+
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: ${LOKI_TABLE_RETENTION:-720h}
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://alertmanager:9093
+  ring:
+    kvstore:
+      store: inmemory
+  enable_api: true

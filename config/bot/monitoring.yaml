@@ -1,0 +1,393 @@
+# Monitoring Configuration for Quantum Trader AI
+# Defines metrics collection, logging, alerting, and observability settings
+# All sensitive values use environment variables
+
+monitoring:
+  # Global monitoring settings
+  enabled: "${MONITORING_ENABLED:-true}"
+  environment: "${DEPLOYMENT_ENV:-production}"
+  service_name: "${SERVICE_NAME:-quantum-trader-ai}"
+  datacenter: "${DATACENTER:-us-east-1}"
+
+  # Metrics collection configuration
+  metrics:
+    enabled: "${METRICS_ENABLED:-true}"
+    provider: "${METRICS_PROVIDER:-prometheus}"
+
+    # Prometheus configuration
+    prometheus:
+      enabled: true
+      scrape_interval: ${PROMETHEUS_SCRAPE_INTERVAL:-15}  # seconds
+      evaluation_interval: ${PROMETHEUS_EVALUATION_INTERVAL:-15}  # seconds
+      retention: "${PROMETHEUS_RETENTION:-30d}"
+      max_samples: ${PROMETHEUS_MAX_SAMPLES:-100000}
+
+      # Prometheus storage
+      storage:
+        type: "${PROMETHEUS_STORAGE_TYPE:-local}"
+        local:
+          path: "${PROMETHEUS_STORAGE_PATH:-/var/lib/prometheus/tsdb}"
+          max_block_duration: "${PROMETHEUS_MAX_BLOCK_DURATION:-24h}"
+
+        # Remote storage (optional)
+        remote:
+          enabled: "${PROMETHEUS_REMOTE_STORAGE_ENABLED:-false}"
+          url: "${PROMETHEUS_REMOTE_URL:-}"
+          username: "${PROMETHEUS_REMOTE_USER:-}"
+          password: "${PROMETHEUS_REMOTE_PASSWORD:-}"
+          write_batch_size: ${PROMETHEUS_WRITE_BATCH_SIZE:-1000}
+          write_interval: "${PROMETHEUS_WRITE_INTERVAL:-1m}"
+
+      # Alertmanager integration
+      alertmanager:
+        enabled: true
+        hosts:
+          - "${ALERTMANAGER_HOST:-localhost}"
+        port: ${ALERTMANAGER_PORT:-9093}
+        timeout_seconds: ${ALERTMANAGER_TIMEOUT:-10}
+
+      # Service discovery
+      service_discovery:
+        enabled: "${SERVICE_DISCOVERY_ENABLED:-true}"
+        type: "${SERVICE_DISCOVERY_TYPE:-consul}"
+
+        consul:
+          enabled: "${CONSUL_ENABLED:-false}"
+          host: "${CONSUL_HOST:-localhost}"
+          port: ${CONSUL_PORT:-8500}
+          datacenter: "${CONSUL_DATACENTER:-dc1}"
+
+        kubernetes:
+          enabled: "${KUBERNETES_ENABLED:-false}"
+          namespace: "${K8S_NAMESPACE:-default}"
+
+    # Custom metrics
+    custom_metrics:
+      - name: "quantum_trader_orders_total"
+        type: "counter"
+        help: "Total number of trading orders"
+        labels: ["strategy", "symbol", "side"]
+
+      - name: "quantum_trader_position_value_usd"
+        type: "gauge"
+        help: "Current position value in USD"
+        labels: ["symbol", "account"]
+
+      - name: "quantum_trader_pnl_realization_usd"
+        type: "gauge"
+        help: "Realized PnL in USD"
+        labels: ["symbol", "account", "period"]
+
+      - name: "quantum_trader_model_confidence"
+        type: "histogram"
+        help: "Model prediction confidence scores"
+        labels: ["model_name", "symbol"]
+        buckets: [0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]
+
+      - name: "quantum_trader_data_latency_ms"
+        type: "histogram"
+        help: "Data feed latency in milliseconds"
+        labels: ["feed_name"]
+        buckets: [10, 25, 50, 100, 250, 500, 1000]
+
+      - name: "quantum_trader_execution_latency_ms"
+        type: "histogram"
+        help: "Order execution latency in milliseconds"
+        labels: ["exchange", "order_type"]
+        buckets: [5, 10, 25, 50, 100, 250, 500]
+
+      - name: "quantum_trader_strategy_pnl_daily_usd"
+        type: "gauge"
+        help: "Daily strategy PnL in USD"
+        labels: ["strategy_name", "account"]
+
+      - name: "quantum_trader_drawdown_percent"
+        type: "gauge"
+        help: "Current drawdown percentage"
+        labels: ["account"]
+
+    # Histogram buckets for latency metrics
+    histogram_buckets:
+      latency_ms: [1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000]
+      duration_seconds: [0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 300]
+
+    # Cardinality limits
+    cardinality_limits:
+      enabled: true
+      max_label_names_per_metric: 10
+      max_label_values: 1000
+      sample_limit: 10000000
+
+  # Logging configuration
+  logging:
+    enabled: "${LOGGING_ENABLED:-true}"
+    level: "${LOG_LEVEL:-info}"  # debug, info, warn, error, critical
+    format: "${LOG_FORMAT:-json}"  # json, text, logfmt
+
+    # Log output destinations
+    outputs:
+      - type: "stdout"
+        enabled: true
+        level: "${LOG_STDOUT_LEVEL:-info}"
+
+      - type: "file"
+        enabled: "${LOG_FILE_ENABLED:-true}"
+        path: "${LOG_FILE_PATH:-/var/log/quantum-trader}"
+        filename: "${LOG_FILENAME:-quantum-trader.log}"
+        max_size_mb: ${LOG_MAX_SIZE_MB:-100}
+        max_age_days: ${LOG_MAX_AGE_DAYS:-30}
+        max_backups: ${LOG_MAX_BACKUPS:-10}
+        compress: "${LOG_COMPRESS:-true}"
+
+    # Structured logging
+    structured:
+      enabled: true
+      include_trace_id: true
+      include_user_id: true
+      include_request_id: true
+      include_duration: true
+      include_status: true
+
+    # Log aggregation (Loki)
+    aggregation:
+      enabled: "${LOG_AGGREGATION_ENABLED:-true}"
+      provider: "${LOG_AGGREGATION_PROVIDER:-loki}"
+
+      loki:
+        enabled: true
+        endpoint: "${LOKI_ENDPOINT:-http://localhost:3100}"
+        batch_size: ${LOKI_BATCH_SIZE:-1000}
+        batch_timeout: "${LOKI_BATCH_TIMEOUT:-1s}"
+        tenant_id: "${LOKI_TENANT_ID:-quantum-trader}"
+        labels:
+          environment: "${DEPLOYMENT_ENV:-production}"
+          service: "${SERVICE_NAME:-quantum-trader-ai}"
+          version: "${APP_VERSION:-unknown}"
+
+    # Sampling
+    sampling:
+      enabled: "${LOG_SAMPLING_ENABLED:-true}"
+      initial: ${LOG_SAMPLING_INITIAL:-100}
+      thereafter: ${LOG_SAMPLING_THEREAFTER:-100}
+
+  # Distributed tracing configuration
+  tracing:
+    enabled: "${TRACING_ENABLED:-true}"
+    provider: "${TRACING_PROVIDER:-jaeger}"
+    sample_rate: ${TRACING_SAMPLE_RATE:-0.01}  # 1% sample rate
+
+    # Jaeger configuration
+    jaeger:
+      enabled: true
+      agent_host: "${JAEGER_AGENT_HOST:-localhost}"
+      agent_port: ${JAEGER_AGENT_PORT:-6831}
+      sampler:
+        type: "${JAEGER_SAMPLER_TYPE:-probabilistic}"
+        param: ${JAEGER_SAMPLER_PARAM:-0.01}
+
+    # Trace exporters
+    exporters:
+      - type: "jaeger"
+        enabled: true
+        endpoint: "${JAEGER_ENDPOINT:-http://localhost:14268/api/traces}"
+        timeout: ${JAEGER_TIMEOUT:-10}
+
+    # Instrumentation
+    instrumentation:
+      http: "${TRACING_HTTP:-true}"
+      database: "${TRACING_DATABASE:-true}"
+      cache: "${TRACING_CACHE:-true}"
+      messaging: "${TRACING_MESSAGING:-true}"
+
+  # Health checks configuration
+  health_checks:
+    enabled: "${HEALTH_CHECKS_ENABLED:-true}"
+    interval_seconds: ${HEALTH_CHECK_INTERVAL:-30}
+    timeout_seconds: ${HEALTH_CHECK_TIMEOUT:-10}
+
+    checks:
+      - name: "database"
+        enabled: true
+        timeout: 5
+        interval: 30
+
+      - name: "cache"
+        enabled: true
+        timeout: 3
+        interval: 30
+
+      - name: "message_queue"
+        enabled: true
+        timeout: 5
+        interval: 30
+
+      - name: "model_registry"
+        enabled: true
+        timeout: 10
+        interval: 60
+
+      - name: "data_feeds"
+        enabled: true
+        timeout: 5
+        interval: 30
+
+  # Alerting configuration
+  alerting:
+    enabled: "${ALERTING_ENABLED:-true}"
+
+    # Alert routing
+    routing:
+      group_by: ["service", "severity"]
+      group_wait: "${ALERT_GROUP_WAIT:-10s}"
+      group_interval: "${ALERT_GROUP_INTERVAL:-10s}"
+      repeat_interval: "${ALERT_REPEAT_INTERVAL:-12h}"
+
+    # Notification channels
+    channels:
+      email:
+        enabled: "${ALERT_EMAIL_ENABLED:-true}"
+        smtp_host: "${SMTP_HOST:-}"
+        smtp_port: ${SMTP_PORT:-587}
+        smtp_user: "${SMTP_USER:-}"
+        smtp_password: "${SMTP_PASSWORD:-}"
+        from_address: "${ALERT_FROM_EMAIL:-alerts@company.com}"
+        recipients:
+          - "${ALERT_EMAIL_CRITICAL:-ops-critical@company.com}"
+          - "${ALERT_EMAIL_WARNING:-ops-warning@company.com}"
+
+      slack:
+        enabled: "${ALERT_SLACK_ENABLED:-true}"
+        webhook_url: "${SLACK_WEBHOOK_URL:-}"
+        channel: "${SLACK_CHANNEL:-#trading-alerts}"
+        username: "${SLACK_USERNAME:-Quantum Trader}"
+
+      pagerduty:
+        enabled: "${ALERT_PAGERDUTY_ENABLED:-true}"
+        integration_key: "${PAGERDUTY_INTEGRATION_KEY:-}"
+        service_key: "${PAGERDUTY_SERVICE_KEY:-}"
+
+      opsgenie:
+        enabled: "${ALERT_OPSGENIE_ENABLED:-true}"
+        api_key: "${OPSGENIE_API_KEY:-}"
+        team: "${OPSGENIE_TEAM:-Trading}"
+
+      webhook:
+        enabled: "${ALERT_WEBHOOK_ENABLED:-true}"
+        url: "${ALERT_WEBHOOK_URL:-}"
+        timeout: ${ALERT_WEBHOOK_TIMEOUT:-10}
+
+    # Alert escalation
+    escalation:
+      enabled: "${ALERT_ESCALATION_ENABLED:-true}"
+      rules:
+        - name: "critical_alerts"
+          severity: "critical"
+          wait_minutes: 5
+          escalate_to:
+            - "pagerduty"
+            - "opsgenie"
+
+        - name: "high_priority_alerts"
+          severity: "warning"
+          wait_minutes: 15
+          escalate_to:
+            - "slack"
+            - "email"
+
+  # Performance profiling
+  profiling:
+    enabled: "${PROFILING_ENABLED:-false}"
+    cpu:
+      enabled: "${CPU_PROFILING:-false}"
+      duration: ${CPU_PROFILE_DURATION:-30}
+      output_path: "${CPU_PROFILE_PATH:-/var/log/quantum-trader/profiles}"
+
+    memory:
+      enabled: "${MEMORY_PROFILING:-false}"
+      interval_seconds: ${MEMORY_PROFILE_INTERVAL:-60}
+      output_path: "${MEMORY_PROFILE_PATH:-/var/log/quantum-trader/profiles}"
+
+    goroutine:
+      enabled: "${GOROUTINE_PROFILING:-false}"
+      interval_seconds: ${GOROUTINE_PROFILE_INTERVAL:-300}
+
+  # Metrics export
+  export:
+    prometheus:
+      enabled: true
+      endpoint: "/metrics"
+      namespace: "quantum_trader"
+      subsystem: "trading"
+
+    graphite:
+      enabled: "${GRAPHITE_ENABLED:-false}"
+      host: "${GRAPHITE_HOST:-}"
+      port: ${GRAPHITE_PORT:-2003}
+      prefix: "${GRAPHITE_PREFIX:-quantum.trader}"
+      interval: "${GRAPHITE_INTERVAL:-30s}"
+
+    datadog:
+      enabled: "${DATADOG_ENABLED:-false}"
+      api_key: "${DATADOG_API_KEY:-}"
+      app_key: "${DATADOG_APP_KEY:-}"
+      site: "${DATADOG_SITE:-datadoghq.com}"
+
+    cloudwatch:
+      enabled: "${CLOUDWATCH_ENABLED:-false}"
+      namespace: "${CLOUDWATCH_NAMESPACE:-QuantumTrader}"
+      region: "${AWS_REGION:-us-east-1}"
+
+  # Retention policies
+  retention:
+    metrics:
+      high_resolution: "${RETENTION_HIGH_RES:-15d}"
+      normal_resolution: "${RETENTION_NORMAL:-90d}"
+      long_term: "${RETENTION_LONG_TERM:-1y}"
+
+    logs:
+      error_logs: "${RETENTION_ERROR_LOGS:-90d}"
+      audit_logs: "${RETENTION_AUDIT_LOGS:-1y}"
+      debug_logs: "${RETENTION_DEBUG_LOGS:-7d}"
+
+    traces:
+      sampling_rate: ${TRACE_RETENTION_SAMPLE:-0.01}
+      retention_days: ${TRACE_RETENTION_DAYS:-7}
+
+  # Performance optimization
+  optimization:
+    # Caching
+    cache:
+      enabled: true
+      ttl_seconds: ${METRICS_CACHE_TTL:-300}
+      max_size_mb: ${METRICS_CACHE_SIZE:-100}
+
+    # Batching
+    batching:
+      enabled: true
+      batch_size: ${METRICS_BATCH_SIZE:-1000}
+      batch_timeout_ms: ${METRICS_BATCH_TIMEOUT:-5000}
+
+    # Compression
+    compression:
+      enabled: true
+      algorithm: "${COMPRESSION_ALGORITHM:-gzip}"
+      level: ${COMPRESSION_LEVEL:-6}
+
+  # Security and compliance
+  security:
+    tls_enabled: "${MONITORING_TLS_ENABLED:-true}"
+    tls_cert_path: "${MONITORING_TLS_CERT:-/etc/ssl/certs/monitoring.crt}"
+    tls_key_path: "${MONITORING_TLS_KEY:-/etc/ssl/private/monitoring.key}"
+    auth_enabled: true
+    auth_type: "${MONITORING_AUTH_TYPE:-bearer}"
+    api_key: "${MONITORING_API_KEY:-}"
+    audit_logging: true
+    pii_redaction: true
+
+  # SLA and SLO configuration
+  sla:
+    enabled: true
+    objectives:
+      availability: ${SLO_AVAILABILITY:-0.999}  # 99.9%
+      latency_p99_ms: ${SLO_LATENCY_P99:-500}
+      error_rate: ${SLO_ERROR_RATE:-0.001}  # 0.1%

@@ -1,0 +1,145 @@
+# ============================================================================
+# Quantum Trader AI - Development Environment Configuration
+# ============================================================================
+# Development-specific settings with relaxed constraints for testing
+# ============================================================================
+
+environment: development
+
+bot:
+  name: ${BOT_NAME:-quantum-trader-dev}
+  execution:
+    mode: paper  # Paper trading for development
+    max_concurrent_orders: 10
+    order_timeout_seconds: 60
+    retry_attempts: 2
+    retry_delay_ms: 500
+
+  trading:
+    enabled_exchanges:
+      - binance  # Testnet
+    symbols: BTC/USDT,ETH/USDT
+    timeframes:
+      - 1m
+      - 5m
+      - 15m
+    default_order_type: LIMIT
+    slippage_tolerance_bps: 50  # 0.5% - more tolerant
+    min_order_size_usdt: 10.0
+    max_order_size_usdt: 1000.0
+    max_positions: 5
+    max_position_size_usdt: 500.0
+    position_size_percent: 1.0
+
+  logging:
+    level: DEBUG
+    format: text  # Human-readable for development
+    destination: console
+    structured_logging: false
+
+  database:
+    host: ${DB_HOST:-localhost}
+    port: 5432
+    name: quantum_trader_dev
+    user: ${DB_USER:-dev_user}
+    password: ${DB_PASSWORD:-dev_password}
+    ssl_mode: disable  # Disable SSL for local development
+    pool_size: 5
+    max_overflow: 2
+
+  cache:
+    host: ${REDIS_HOST:-localhost}
+    port: 6379
+    db: 1  # Separate DB for dev
+    password: ${REDIS_PASSWORD:-dev_redis}
+    ssl: false
+    max_connections: 10
+
+  api:
+    enabled: true
+    host: 0.0.0.0
+    port: 8000
+    workers: 2
+    cors_origins: "*"  # Allow all origins in dev
+    rate_limit_per_minute: 1000  # Higher limit for testing
+    enable_docs: true  # Enable Swagger/OpenAPI docs
+
+  websocket:
+    enabled: true
+    port: 8001
+    max_connections: 100
+
+  security:
+    enable_encryption: false  # Disabled for easier debugging
+    jwt_expiry_hours: 720  # 30 days
+    enable_2fa: false
+    max_login_attempts: 100  # Relaxed for dev
+
+  health:
+    enabled: true
+    interval_seconds: 300  # Less frequent
+    timeout_seconds: 30
+
+  emergency:
+    enable_circuit_breaker: false  # Disabled for testing
+    max_daily_loss_percent: 50.0  # Very relaxed
+    max_drawdown_percent: 50.0
+
+  backup:
+    enabled: false  # Disabled in dev
+
+  features:
+    enable_ai_models: true
+    enable_arbitrage: true
+    enable_market_making: false
+    enable_hft: false
+    enable_options: false
+    enable_sentiment_analysis: false  # Disabled to save resources
+
+exchanges:
+  binance:
+    api_key: ${BINANCE_TESTNET_API_KEY}
+    secret: ${BINANCE_TESTNET_SECRET}
+    testnet: true  # Use testnet
+    base_url: https://testnet.binance.vision
+
+risk:
+  max_portfolio_risk_percent: 10.0
+  max_position_risk_percent: 5.0
+  max_leverage: 3
+  stop_loss_percent: 5.0
+  take_profit_percent: 10.0
+  max_daily_trades: 50
+  max_drawdown_percent: 20.0
+  var_confidence_level: 0.95
+  var_time_horizon_days: 1
+
+ml:
+  enabled: true
+  model_update_frequency_hours: 24
+  training_data_days: 30  # Shorter for faster iteration
+  batch_size: 32
+  epochs: 10  # Fewer epochs for dev
+  early_stopping_patience: 5
+  use_gpu: false  # CPU only for dev machines
+
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    scrape_interval: 60s
+
+  grafana:
+    enabled: true
+    port: 3001
+
+  alerting:
+    enabled: false  # Disabled to reduce noise
+
+notifications:
+  slack:
+    enabled: false
+  email:
+    enabled: false
+  telegram:
+    enabled: false

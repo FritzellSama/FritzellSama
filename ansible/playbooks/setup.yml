@@ -1,0 +1,447 @@
+---
+# Initial server setup playbook for Quantum Trader AI
+# Prepares production environment with system packages, users, and infrastructure
+
+- name: Initial Production Server Setup
+  hosts: "{{ target_hosts | default('quantum_trader_servers') }}"
+  become: yes
+  vars:
+    # System packages
+    python_version: "{{ ansible_python_version | default('3.11') }}"
+    system_packages:
+      - build-essential
+      - curl
+      - wget
+      - git
+      - htop
+      - iotop
+      - vim
+      - nano
+      - tmux
+      - unzip
+      - zip
+      - openssl
+      - openssh-client
+      - openssh-server
+      - net-tools
+      - ntp
+      - chrony
+      - sudo
+      - rsync
+      - jq
+
+    # Python packages for system
+    python_packages:
+      - python3-pip
+      - python3-venv
+      - python3-dev
+      - "python{{ python_version }}"
+      - "python{{ python_version }}-venv"
+      - "python{{ python_version }}-dev"
+
+    # Monitoring packages
+    monitoring_packages:
+      - prometheus-node-exporter
+      - prometheus
+      - grafana
+      - curl
+
+    # Database packages
+    database_packages:
+      - postgresql-client
+      - postgresql-contrib
+
+    # Message queue packages
+    mq_packages:
+      - rabbitmq-server
+
+  tasks:
+    # System updates
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags:
+        - system
+        - updates
+
+    - name: Upgrade all packages to latest version
+      apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      tags:
+        - system
+        - updates
+
+    # Install base system packages
+    - name: Install base system packages
+      apt:
+        name: "{{ system_packages }}"
+        state: present
+      tags:
+        - system
+        - packages
+
+    # Install Python
+    - name: Install Python packages
+      apt:
+        name: "{{ python_packages }}"
+        state: present
+      tags:
+        - python
+        - packages
+
+    # Install Poetry
+    - name: Install Poetry package manager
+      shell: |
+        curl -sSL https://install.python-poetry.org | python3 -
+      args:
+        creates: /root/.local/bin/poetry
+      tags:
+        - python
+        - poetry
+
+    - name: Add Poetry to PATH
+      lineinfile:
+        path: /etc/profile.d/poetry.sh
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        create: yes
+      tags:
+        - python
+        - poetry
+
+    # Install monitoring packages
+    - name: Install monitoring packages
+      apt:
+        name: "{{ monitoring_packages }}"
+        state: present
+      tags:
+        - monitoring
+        - packages
+
+    # Install database clients
+    - name: Install database packages
+      apt:
+        name: "{{ database_packages }}"
+        state: present
+      tags:
+        - database
+        - packages
+
+    # Install Docker
+    - name: Install Docker
+      block:
+        - name: Add Docker GPG key
+          apt_key:
+            url: https://download.docker.com/linux/ubuntu/gpg
+            state: present
+
+        - name: Add Docker repository
+          apt_repository:
+            repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+            state: present
+
+        - name: Install Docker CE
+          apt:
+            name:
+              - docker-ce
+              - docker-ce-cli
+              - containerd.io
+              - docker-compose-plugin
+            state: present
+
+        - name: Start Docker service
+          systemd:
+            name: docker
+            state: started
+            enabled: yes
+
+      tags:
+        - docker
+
+    # Create service user
+    - name: Create quantum_trader service user
+      user:
+        name: quantum_trader
+        comment: "Quantum Trader AI Service Account"
+        shell: /bin/bash
+        home: /opt/quantum_trader
+        createhome: yes
+        state: present
+      tags:
+        - users
+
+    # Create application directories
+    - name: Create application directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: quantum_trader
+        group: quantum_trader
+        mode: '0755'
+      loop:
+        - /opt/quantum_trader
+        - /opt/quantum_trader/app
+        - /opt/quantum_trader/config
+        - /opt/quantum_trader/logs
+        - /var/log/quantum_trader
+        - /backups/quantum_trader
+        - /etc/quantum_trader
+      tags:
+        - directories
+
+    # Create data directories with proper permissions
+    - name: Create data directories with proper permissions
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner | default('quantum_trader') }}"
+        group: "{{ item.group | default('quantum_trader') }}"
+        mode: "{{ item.mode | default('0755') }}"
+      loop:
+        - path: /var/cache/quantum_trader
+          mode: '0700'
+        - path: /var/run/quantum_trader
+          mode: '0755'
+        - path: /opt/quantum_trader/data
+          mode: '0750'
+      tags:
+        - directories
+
+    # SSH key setup for deployment
+    - name: Generate SSH key for quantum_trader user
+      user:
+        name: quantum_trader
+        generate_ssh_key: yes
+        ssh_key_bits: 4096
+        ssh_key_type: rsa
+      tags:
+        - ssh
+        - security
+
+    # Firewall configuration
+    - name: Enable UFW firewall
+      ufw:
+        state: enabled
+        policy: deny
+        direction: incoming
+      tags:
+        - firewall
+
+    - name: Configure firewall rules
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+        comment: "{{ item.comment }}"
+      loop:
+        - port: '22'
+          proto: tcp
+          comment: SSH
+        - port: '80'
+          proto: tcp
+          comment: HTTP
+        - port: '443'
+          proto: tcp
+          comment: HTTPS
+        - port: '8000'
+          proto: tcp
+          comment: API
+        - port: '9090'
+          proto: tcp
+          comment: Prometheus
+        - port: '3000'
+          proto: tcp
+          comment: Grafana
+        - port: '5432'
+          proto: tcp
+          comment: PostgreSQL
+        - port: '6379'
+          proto: tcp
+          comment: Redis
+        - port: '5672'
+          proto: tcp
+          comment: RabbitMQ
+      tags:
+        - firewall
+
+    # System limits for high-performance trading
+    - name: Configure system limits for quantum_trader
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "{{ item }}"
+        state: present
+      loop:
+        - 'quantum_trader soft nofile 65536'
+        - 'quantum_trader hard nofile 65536'
+        - 'quantum_trader soft nproc 32768'
+        - 'quantum_trader hard nproc 32768'
+        - 'quantum_trader soft memlock unlimited'
+        - 'quantum_trader hard memlock unlimited'
+      tags:
+        - system
+        - performance
+
+    # Kernel tuning for network performance
+    - name: Configure kernel parameters
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_set: yes
+        state: present
+      loop:
+        - key: net.core.somaxconn
+          value: '65536'
+        - key: net.ipv4.tcp_max_syn_backlog
+          value: '65536'
+        - key: net.ipv4.ip_local_port_range
+          value: '1024 65535'
+        - key: net.core.netdev_max_backlog
+          value: '65536'
+        - key: net.ipv4.tcp_tw_reuse
+          value: '1'
+        - key: vm.swappiness
+          value: '10'
+      tags:
+        - system
+        - performance
+        - kernel
+
+    # NTP/Chrony time synchronization
+    - name: Enable and start Chrony NTP service
+      systemd:
+        name: chrony
+        state: started
+        enabled: yes
+      tags:
+        - system
+        - time
+
+    # Setup log rotation
+    - name: Configure logrotate for application logs
+      copy:
+        content: |
+          /var/log/quantum_trader/*.log {
+            daily
+            missingok
+            rotate 30
+            compress
+            delaycompress
+            notifempty
+            create 0644 quantum_trader quantum_trader
+            sharedscripts
+            postrotate
+              systemctl reload quantum_trader > /dev/null 2>&1 || true
+            endscript
+          }
+        dest: /etc/logrotate.d/quantum_trader
+      tags:
+        - logging
+
+    # Swap configuration
+    - name: Create swap file
+      block:
+        - name: Check if swap exists
+          stat:
+            path: /swapfile
+          register: swap_file
+
+        - name: Create swap file
+          shell: |
+            fallocate -l 8G /swapfile
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+          when: not swap_file.stat.exists
+
+        - name: Add swap to fstab
+          lineinfile:
+            path: /etc/fstab
+            line: '/swapfile none swap sw 0 0'
+            state: present
+
+      tags:
+        - system
+        - swap
+
+    # Security updates
+    - name: Install unattended-upgrades for automatic security updates
+      apt:
+        name: unattended-upgrades
+        state: present
+      tags:
+        - security
+        - updates
+
+    - name: Enable unattended-upgrades
+      systemd:
+        name: unattended-upgrades
+        state: started
+        enabled: yes
+      tags:
+        - security
+        - updates
+
+    # Sudo configuration for service account
+    - name: Configure sudoers for quantum_trader
+      copy:
+        content: |
+          # Allow quantum_trader to restart services without password
+          quantum_trader ALL=(ALL) NOPASSWD: /bin/systemctl restart quantum_trader*
+          quantum_trader ALL=(ALL) NOPASSWD: /bin/systemctl reload quantum_trader*
+          quantum_trader ALL=(ALL) NOPASSWD: /bin/systemctl status quantum_trader*
+        dest: /etc/sudoers.d/quantum_trader
+        mode: '0440'
+      tags:
+        - security
+        - sudo
+
+    # SELinux configuration (if applicable)
+    - name: Check SELinux status
+      command: getenforce
+      register: selinux_status
+      failed_when: false
+      tags:
+        - security
+        - selinux
+
+    # Final system verification
+    - name: Run system diagnostics
+      block:
+        - name: Get disk usage
+          shell: df -h | grep -E '^/dev'
+          register: disk_usage
+
+        - name: Get memory information
+          shell: free -h
+          register: memory_info
+
+        - name: Get uptime
+          shell: uptime
+          register: uptime_info
+
+        - name: Display system information
+          debug:
+            msg: |
+              System Setup Complete!
+              Disk Usage:
+              {{ disk_usage.stdout }}
+              Memory:
+              {{ memory_info.stdout }}
+              Uptime:
+              {{ uptime_info.stdout }}
+
+      tags:
+        - diagnostics
+
+  handlers:
+    - name: Restart networking
+      systemd:
+        name: networking
+        state: restarted
+
+    - name: Restart docker
+      systemd:
+        name: docker
+        state: restarted

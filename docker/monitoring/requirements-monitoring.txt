@@ -1,0 +1,42 @@
+# Monitoring & Logging Dependencies
+# Prometheus metrics, logging aggregation, and observability
+
+-r ../base/requirements-base.txt
+
+# Prometheus Metrics
+prometheus-client==0.19.0
+python-statsd==3.3.0
+
+# Logging & Log Aggregation
+python-json-logger==2.0.7
+python-logstash-async==2.5.0
+elasticsearch==8.11.0
+
+# Trace & APM
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-exporter-prometheus==0.42b0
+opentelemetry-instrumentation-flask==0.42b0
+opentelemetry-instrumentation-sqlalchemy==0.42b0
+
+# Health Checks
+healthcheck==0.1.0
+
+# System Metrics
+psutil==5.9.6
+
+# Event/Alerting
+python-dateutil==2.8.2
+
+# Data Formats
+msgpack==1.0.7
+
+# Metrics Collection
+influxdb-client==1.36.1
+
+# Grafana API Integration
+grafana-api==1.0.3
+
+# Performance Profiling
+pyflame==0.3.1
+py-spy==0.3.14

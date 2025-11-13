@@ -1,0 +1,265 @@
+# Prometheus Alert Rules for System Monitoring
+# Quantum Trader AI - System-Level Alerts
+# Production-grade alerting for infrastructure health
+
+groups:
+  - name: system_alerts
+    interval: 15s
+    rules:
+      # CPU Alerts
+      - alert: HighCPUUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% (current value: {{ $value }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/cpu_high_usage"
+          dashboard_url: "https://grafana.production.internal/d/system_dashboard"
+
+      - alert: CriticalCPUUsage
+        expr: (100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 95% (current value: {{ $value }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/cpu_critical"
+          action: "Immediate investigation required"
+
+      # Memory Alerts
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% (current value: {{ $value }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/memory_high_usage"
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 95% (current value: {{ $value }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/memory_critical"
+          action: "Immediate memory investigation and potential service restart"
+
+      # Disk Space Alerts
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs"} / node_filesystem_size_bytes{fstype!~"tmpfs"})) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High disk usage on {{ $labels.instance }} at {{ $labels.mountpoint }}"
+          description: "Disk usage is above 80% (current value: {{ $value }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/disk_high_usage"
+
+      - alert: CriticalDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs"} / node_filesystem_size_bytes{fstype!~"tmpfs"})) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical disk usage on {{ $labels.instance }} at {{ $labels.mountpoint }}"
+          description: "Disk usage is above 90% (current value: {{ $value }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/disk_critical"
+          action: "Immediate disk cleanup or expansion required"
+
+      # Disk I/O Alerts
+      - alert: HighDiskIOWait
+        expr: rate(node_disk_io_time_seconds_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High disk I/O wait time on {{ $labels.instance }}"
+          description: "Disk I/O wait time is elevated (current value: {{ $value }}s)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/diskio_wait_high"
+
+      # Network Alerts
+      - alert: HighNetworkTraffic
+        expr: rate(node_network_transmit_bytes_total{device!~"lo"}[5m]) + rate(node_network_receive_bytes_total{device!~"lo"}[5m]) > 100000000
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High network traffic on {{ $labels.instance }} interface {{ $labels.device }}"
+          description: "Network traffic is above 100MB/s (current value: {{ $value | humanize }}B/s)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/network_high_traffic"
+
+      - alert: NetworkPacketErrors
+        expr: rate(node_network_transmit_errs_total[5m]) > 100 or rate(node_network_receive_errs_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Network packet errors on {{ $labels.instance }}"
+          description: "Network packet errors detected (TX errors: {{ $value }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/network_errors"
+
+      - alert: NetworkConnectivityDown
+        expr: up{job="node_exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Network connectivity down for {{ $labels.instance }}"
+          description: "Cannot reach node exporter on {{ $labels.instance }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/network_down"
+          action: "Investigate network connectivity and node exporter status"
+
+      # System Load Alerts
+      - alert: HighSystemLoad
+        expr: node_load5 / on(instance) count(count(node_cpu_seconds_total{mode="user"}) by (instance, cpu)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High system load on {{ $labels.instance }}"
+          description: "System load average is above 2x CPU cores (current value: {{ $value }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/system_load_high"
+
+      # Context Switch Rate
+      - alert: HighContextSwitchRate
+        expr: rate(node_context_switches_total[5m]) > 10000
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High context switch rate on {{ $labels.instance }}"
+          description: "Context switches per second is elevated (current value: {{ $value }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/context_switches_high"
+
+      # File Descriptor Alerts
+      - alert: HighFileDescriptorUsage
+        expr: node_filefd_allocated / node_filefd_maximum > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High file descriptor usage on {{ $labels.instance }}"
+          description: "File descriptor usage is above 80% (current value: {{ $value | humanizePercentage }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/filefd_high"
+
+      # Process Alerts
+      - alert: TooManyProcesses
+        expr: node_procs_running > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Too many running processes on {{ $labels.instance }}"
+          description: "Number of running processes is above 100 (current value: {{ $value }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/processes_high"
+
+      # Clock Skew Alerts
+      - alert: ClockSkewDetected
+        expr: abs(node_timex_offset_seconds) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Clock skew detected on {{ $labels.instance }}"
+          description: "System clock is off by {{ $value }}s (should be < 0.05s)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/clock_skew"
+          action: "Check NTP/Chrony synchronization"
+
+      # System Restart
+      - alert: NodeRestarted
+        expr: increase(node_boot_time_seconds[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Node {{ $labels.instance }} has restarted"
+          description: "Node boot time has changed, indicating a system restart"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/node_restart"
+          action: "Investigate reason for node restart"
+
+      # Swap Usage Alerts
+      - alert: HighSwapUsage
+        expr: (1 - (node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes)) * 100 > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High swap usage on {{ $labels.instance }}"
+          description: "Swap usage is above 50% (current value: {{ $value }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/swap_high"
+          action: "Consider increasing RAM or investigating memory leaks"
+
+      # TCP Connection Alerts
+      - alert: HighTCPConnections
+        expr: node_sockstat_TCP_inuse > 10000
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High number of TCP connections on {{ $labels.instance }}"
+          description: "TCP connections in use (current value: {{ $value }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/tcp_connections_high"
+
+      # Systemd Service Failure Alerts
+      - alert: SystemdServiceFailed
+        expr: node_systemd_unit_state{state="failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Systemd service failed on {{ $labels.instance }}"
+          description: "Service {{ $labels.name }} has failed"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/systemd_failed"
+          action: "Check systemd logs and service status"
+
+      # Temperature Alerts (if available)
+      - alert: HighHardwareTemperature
+        expr: node_hwmon_temp_celsius > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High hardware temperature on {{ $labels.instance }}"
+          description: "{{ $labels.chip }} temperature is {{ $value }}°C"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/temp_high"
+          action: "Check cooling system and physical hardware"
+
+      # Entropy Pool Alert
+      - alert: LowEntropyPool
+        expr: node_entropy_available_bits < 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Low entropy pool on {{ $labels.instance }}"
+          description: "Entropy pool is low (current value: {{ $value }} bits)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/entropy_low"
+          action: "May impact cryptographic operations"

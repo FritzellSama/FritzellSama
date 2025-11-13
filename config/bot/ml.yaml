@@ -1,0 +1,265 @@
+# ML Configuration for Quantum Trader AI
+# Defines model training, inference, and registry settings
+# All sensitive values use environment variables
+
+ml:
+  # Model registry configuration
+  registry:
+    type: "${ML_REGISTRY_TYPE:-mlflow}"
+    mlflow:
+      # MLflow tracking server
+      tracking_uri: "${ML_TRACKING_URI:-http://localhost:5000}"
+      backend_store_uri: "${ML_BACKEND_STORE_URI:-postgresql://${ML_REGISTRY_USER:-mlflow}:${ML_REGISTRY_PASSWORD}@${ML_REGISTRY_HOST:-localhost}:5432/mlflow}"
+      default_artifact_root: "${ML_ARTIFACT_ROOT:-/var/lib/ml/artifacts}"
+      experiment_name: "${ML_EXPERIMENT_NAME:-quantum-trader-prod}"
+
+    # Model registry metadata
+    metadata:
+      source_system: "quantum-trader-ai"
+      version_control: "${GIT_COMMIT_SHA:-unknown}"
+      deployment_environment: "${DEPLOYMENT_ENV:-production}"
+
+  # Model training configuration
+  training:
+    # General training parameters
+    enabled: "${ML_TRAINING_ENABLED:-true}"
+    schedule: "${ML_TRAINING_SCHEDULE:-0 2 * * *}"  # 2 AM daily
+    max_duration_hours: ${ML_TRAINING_MAX_DURATION:-8}
+
+    # Training data configuration
+    data:
+      source: "${ML_DATA_SOURCE:-postgresql}"
+      connection_string: "${ML_DATA_CONNECTION:-postgresql://${DB_USER:-trader}:${DB_PASSWORD}@${DB_HOST:-localhost}:5432/quantum_trader}"
+      lookback_days: ${ML_TRAINING_LOOKBACK_DAYS:-365}
+      test_split_ratio: ${ML_TEST_SPLIT_RATIO:-0.2}
+      validation_split_ratio: ${ML_VALIDATION_SPLIT_RATIO:-0.1}
+      batch_size: ${ML_BATCH_SIZE:-32}
+
+    # Feature engineering
+    features:
+      normalization: "${ML_FEATURE_NORMALIZATION:-standard}"  # standard, minmax, robust
+      scaling_method: "${ML_SCALING_METHOD:-StandardScaler}"
+      feature_selection_method: "${ML_FEATURE_SELECTION:-rfe}"  # rfe, mutual_info, variance_threshold
+      n_selected_features: ${ML_N_FEATURES:-50}
+
+    # Model architectures to train
+    models:
+      - name: "ensemble-gradient-boosting"
+        type: "xgboost"
+        enabled: "${ML_TRAIN_XGB:-true}"
+        hyperparameters:
+          n_estimators: ${ML_XGB_N_ESTIMATORS:-500}
+          max_depth: ${ML_XGB_MAX_DEPTH:-7}
+          learning_rate: ${ML_XGB_LEARNING_RATE:-0.1}
+          subsample: ${ML_XGB_SUBSAMPLE:-0.8}
+          colsample_bytree: ${ML_XGB_COLSAMPLE:-0.8}
+          reg_alpha: ${ML_XGB_REG_ALPHA:-0.1}
+          reg_lambda: ${ML_XGB_REG_LAMBDA:-1.0}
+          tree_method: "${ML_XGB_TREE_METHOD:-gpu_hist}"
+          gpu_id: ${ML_XGB_GPU_ID:-0}
+
+      - name: "random-forest-ensemble"
+        type: "random_forest"
+        enabled: "${ML_TRAIN_RF:-true}"
+        hyperparameters:
+          n_estimators: ${ML_RF_N_ESTIMATORS:-300}
+          max_depth: ${ML_RF_MAX_DEPTH:-15}
+          min_samples_split: ${ML_RF_MIN_SAMPLES_SPLIT:-5}
+          min_samples_leaf: ${ML_RF_MIN_SAMPLES_LEAF:-2}
+          max_features: "${ML_RF_MAX_FEATURES:-sqrt}"
+          bootstrap: "${ML_RF_BOOTSTRAP:-true}"
+          n_jobs: ${ML_RF_N_JOBS:--1}
+
+      - name: "lstm-neural-network"
+        type: "lstm"
+        enabled: "${ML_TRAIN_LSTM:-true}"
+        hyperparameters:
+          input_shape: ${ML_LSTM_INPUT_SHAPE:-[60, 50]}
+          layers: ${ML_LSTM_LAYERS:-3}
+          units: ${ML_LSTM_UNITS:-128}
+          dropout_rate: ${ML_LSTM_DROPOUT:-0.2}
+          recurrent_dropout: ${ML_LSTM_REC_DROPOUT:-0.2}
+          optimizer: "${ML_LSTM_OPTIMIZER:-adam}"
+          loss_function: "${ML_LSTM_LOSS:-mse}"
+          epochs: ${ML_LSTM_EPOCHS:-100}
+
+      - name: "transformer-attention"
+        type: "transformer"
+        enabled: "${ML_TRAIN_TRANSFORMER:-true}"
+        hyperparameters:
+          d_model: ${ML_TRANSFORMER_D_MODEL:-256}
+          n_heads: ${ML_TRANSFORMER_N_HEADS:-8}
+          n_encoder_layers: ${ML_TRANSFORMER_ENCODER_LAYERS:-4}
+          n_decoder_layers: ${ML_TRANSFORMER_DECODER_LAYERS:-4}
+          d_ff: ${ML_TRANSFORMER_D_FF:-1024}
+          dropout_rate: ${ML_TRANSFORMER_DROPOUT:-0.1}
+          attention_dropout: ${ML_TRANSFORMER_ATTENTION_DROPOUT:-0.1}
+          max_seq_length: ${ML_TRANSFORMER_MAX_SEQ:-60}
+
+    # Training optimization
+    optimization:
+      learning_rate_scheduler: "${ML_LR_SCHEDULER:-exponential}"
+      initial_learning_rate: ${ML_INITIAL_LR:-0.001}
+      learning_rate_decay: ${ML_LR_DECAY:-0.95}
+      early_stopping_patience: ${ML_EARLY_STOPPING_PATIENCE:-10}
+      early_stopping_metric: "${ML_EARLY_STOPPING_METRIC:-validation_loss}"
+      gradient_clipping: ${ML_GRADIENT_CLIPPING:-1.0}
+
+    # Distributed training
+    distributed:
+      enabled: "${ML_DISTRIBUTED_TRAINING:-true}"
+      strategy: "${ML_DISTRIBUTED_STRATEGY:-ddp}"  # ddp, horovod, tf_mirrored
+      n_gpus: ${ML_N_GPUS:-4}
+      backend: "${ML_DISTRIBUTED_BACKEND:-nccl}"
+
+    # Hyperparameter tuning
+    hyperparameter_tuning:
+      enabled: "${ML_HYPERPARAMETER_TUNING:-true}"
+      method: "${ML_HPT_METHOD:-optuna}"  # optuna, hyperband, grid
+      n_trials: ${ML_HPT_N_TRIALS:-100}
+      timeout_hours: ${ML_HPT_TIMEOUT:-24}
+      n_jobs: ${ML_HPT_N_JOBS:-8}
+      sampler: "${ML_HPT_SAMPLER:-tpe}"  # tpe, grid, random
+
+    # Cross-validation
+    cross_validation:
+      enabled: "${ML_CROSS_VALIDATION:-true}"
+      n_splits: ${ML_CV_N_SPLITS:-5}
+      method: "${ML_CV_METHOD:-time_series}"  # time_series, stratified, kfold
+
+  # Model inference configuration
+  inference:
+    enabled: "${ML_INFERENCE_ENABLED:-true}"
+
+    # Inference serving
+    serving:
+      framework: "${ML_SERVING_FRAMEWORK:-triton}"  # triton, kserve, seldon
+      address: "${ML_SERVING_ADDRESS:-0.0.0.0}"
+      port: ${ML_SERVING_PORT:-8000}
+      http_port: ${ML_SERVING_HTTP_PORT:-8001}
+      metrics_port: ${ML_SERVING_METRICS_PORT:-8002}
+
+      # TensorRT optimization
+      tensorrt:
+        enabled: "${ML_TENSORRT_ENABLED:-true}"
+        precision: "${ML_TENSORRT_PRECISION:-fp16}"  # fp32, fp16, int8
+        max_batch_size: ${ML_TENSORRT_MAX_BATCH:-256}
+        workspace_size_mb: ${ML_TENSORRT_WORKSPACE:-2048}
+
+    # Model loading and caching
+    model_loading:
+      cache_dir: "${ML_MODEL_CACHE_DIR:-/var/lib/ml/model_cache}"
+      cache_size_gb: ${ML_MODEL_CACHE_SIZE:-50}
+      reload_interval_seconds: ${ML_MODEL_RELOAD_INTERVAL:-300}
+      preload_models: "${ML_PRELOAD_MODELS:-true}"
+
+    # Inference parameters
+    parameters:
+      batch_size: ${ML_INFERENCE_BATCH_SIZE:-128}
+      max_queue_size: ${ML_INFERENCE_MAX_QUEUE:-10000}
+      num_workers: ${ML_INFERENCE_NUM_WORKERS:-8}
+      timeout_seconds: ${ML_INFERENCE_TIMEOUT:-30}
+
+    # Prediction post-processing
+    post_processing:
+      enabled: "${ML_POST_PROCESSING_ENABLED:-true}"
+      methods:
+        - type: "confidence_threshold"
+          min_confidence: ${ML_MIN_CONFIDENCE:-0.5}
+        - type: "ensemble_voting"
+          voting_method: "${ML_ENSEMBLE_VOTING:-weighted}"
+        - type: "outlier_detection"
+          method: "${ML_OUTLIER_METHOD:-isolation_forest}"
+          contamination: ${ML_OUTLIER_CONTAMINATION:-0.05}
+
+  # Model monitoring and validation
+  monitoring:
+    enabled: "${ML_MODEL_MONITORING_ENABLED:-true}"
+
+    # Model performance tracking
+    performance:
+      metrics:
+        - "accuracy"
+        - "precision"
+        - "recall"
+        - "f1_score"
+        - "auc_roc"
+        - "mean_absolute_error"
+        - "rmse"
+      tracking_interval_seconds: ${ML_METRICS_TRACKING_INTERVAL:-60}
+
+    # Data drift detection
+    data_drift:
+      enabled: "${ML_DATA_DRIFT_DETECTION:-true}"
+      method: "${ML_DRIFT_METHOD:-kolmogorov_smirnov}"  # ks, wasserstein, psi
+      threshold: ${ML_DRIFT_THRESHOLD:-0.05}
+      check_interval_hours: ${ML_DRIFT_CHECK_INTERVAL:-1}
+
+    # Concept drift detection
+    concept_drift:
+      enabled: "${ML_CONCEPT_DRIFT_DETECTION:-true}"
+      method: "${ML_CONCEPT_DRIFT_METHOD:-adwin}"  # adwin, eddm, ddm
+      threshold: ${ML_CONCEPT_DRIFT_THRESHOLD:-0.1}
+
+    # Model performance degradation
+    degradation:
+      enabled: "${ML_DEGRADATION_MONITORING:-true}"
+      performance_threshold: ${ML_PERFORMANCE_THRESHOLD:-0.9}
+      alert_enabled: "${ML_DEGRADATION_ALERT:-true}"
+
+  # Explainability and interpretability
+  explainability:
+    enabled: "${ML_EXPLAINABILITY_ENABLED:-true}"
+
+    # SHAP values for feature importance
+    shap:
+      enabled: "${ML_SHAP_ENABLED:-true}"
+      explainer_type: "${ML_SHAP_EXPLAINER:-tree}"  # tree, kernel, gradient
+      background_samples: ${ML_SHAP_BACKGROUND_SAMPLES:-100}
+
+    # LIME local explanations
+    lime:
+      enabled: "${ML_LIME_ENABLED:-true}"
+      num_samples: ${ML_LIME_NUM_SAMPLES:-1000}
+      kernel_width: ${ML_LIME_KERNEL_WIDTH:-0.25}
+
+    # Global explanations
+    global:
+      enabled: "${ML_GLOBAL_EXPLANATIONS:-true}"
+      method: "${ML_GLOBAL_METHOD:-permutation_importance}"
+
+  # Model versioning and rollback
+  versioning:
+    enabled: "${ML_VERSIONING_ENABLED:-true}"
+    retention_policy: "${ML_VERSION_RETENTION:-keep_last_10}"
+    rollback_enabled: "${ML_ROLLBACK_ENABLED:-true}"
+
+  # GPU and resource configuration
+  resources:
+    gpu:
+      enabled: "${ML_GPU_ENABLED:-true}"
+      cuda_device_order: "${ML_CUDA_DEVICE_ORDER:-PCI_BUS_ID}"
+      cuda_visible_devices: "${ML_CUDA_VISIBLE_DEVICES:-0,1,2,3}"
+      cuda_launch_blocking: "${ML_CUDA_LAUNCH_BLOCKING:-0}"
+
+    memory:
+      fraction_gpu_memory: ${ML_GPU_MEMORY_FRACTION:-0.9}
+      allow_growth: "${ML_ALLOW_MEMORY_GROWTH:-true}"
+
+    cpu:
+      num_threads: ${ML_NUM_CPU_THREADS:-32}
+      num_inter_threads: ${ML_NUM_INTER_THREADS:-8}
+
+  # Logging and debugging
+  logging:
+    level: "${ML_LOG_LEVEL:-INFO}"
+    format: "${ML_LOG_FORMAT:-json}"
+    output_dir: "${ML_LOGS_DIR:-/var/log/quantum-trader/ml}"
+    retention_days: ${ML_LOG_RETENTION_DAYS:-30}
+
+  # Security and compliance
+  security:
+    encrypt_models: "${ML_ENCRYPT_MODELS:-true}"
+    model_signing: "${ML_MODEL_SIGNING:-true}"
+    audit_logging: "${ML_AUDIT_LOGGING:-true}"
+    model_access_control: "${ML_MODEL_ACCESS_CONTROL:-rbac}"

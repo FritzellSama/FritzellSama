@@ -1,0 +1,31 @@
+# Bot-Specific Dependencies for Trading Bot
+# Cryptocurrency exchange integration and trading logic
+
+-r ../base/requirements-base.txt
+
+# Cryptocurrency Exchange APIs
+ccxt==4.0.96
+websockets==12.0
+
+# Technical Analysis
+TA-Lib==0.4.28
+pandas-ta==0.3.14b0
+
+# Order & Trade Management
+stomp.py==8.1.0
+
+# Async Support
+asyncio-contextmanager==1.0.0
+async-timeout==4.0.3
+
+# Market Data Processing
+python-binance==1.0.17
+
+# Statistics & Calculations
+statsmodels==0.14.0
+
+# Data Validation
+marshmallow==3.20.1
+
+# Decimal Precision
+python-decimal==1.0.0

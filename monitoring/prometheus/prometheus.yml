@@ -1,0 +1,216 @@
+# Prometheus Configuration for Quantum Trader AI
+# Production deployment with comprehensive metric scraping and alerting
+
+global:
+  # How often to scrape targets by default
+  scrape_interval: ${PROMETHEUS_SCRAPE_INTERVAL:-15s}
+
+  # How long until a scrape request times out
+  scrape_timeout: ${PROMETHEUS_SCRAPE_TIMEOUT:-10s}
+
+  # How often to evaluate rules
+  evaluation_interval: ${PROMETHEUS_EVAL_INTERVAL:-15s}
+
+  # Default external labels for all metrics
+  external_labels:
+    cluster: ${PROMETHEUS_CLUSTER:-production}
+    environment: ${PROMETHEUS_ENV:-production}
+    region: ${PROMETHEUS_REGION:-us-east-1}
+
+# Alertmanager configuration
+alerting:
+  alert_relabel_configs: []
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - ${ALERTMANAGER_HOST:-alertmanager.production.internal}:${ALERTMANAGER_PORT:-9093}
+      scheme: ${ALERTMANAGER_SCHEME:-http}
+      timeout: ${ALERTMANAGER_TIMEOUT:-10s}
+      api_version: ${ALERTMANAGER_API_VERSION:-v1}
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - ${PROMETHEUS_RULES_PATH:-/etc/prometheus/rules}/*.yaml
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    scrape_interval: ${PROMETHEUS_SELF_SCRAPE_INTERVAL:-15s}
+    scrape_timeout: ${PROMETHEUS_SELF_SCRAPE_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets:
+          - localhost:9090
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [__scheme__]
+        target_label: scheme
+
+  # Quantum Trader API Service
+  - job_name: quantum_trader_api
+    scrape_interval: ${SCRAPE_QT_API_INTERVAL:-15s}
+    scrape_timeout: ${SCRAPE_QT_API_TIMEOUT:-10s}
+    metrics_path: ${QT_API_METRICS_PATH:-/metrics}
+    scheme: ${QT_API_SCHEME:-http}
+
+    static_configs:
+      - targets:
+          - ${QT_API_HOST:-localhost}:${QT_API_METRICS_PORT:-8001}
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: quantum_trader_api
+      - target_label: environment
+        replacement: ${PROMETHEUS_ENV:-production}
+
+  # Trading Engine
+  - job_name: trading_engine
+    scrape_interval: ${SCRAPE_ENGINE_INTERVAL:-15s}
+    scrape_timeout: ${SCRAPE_ENGINE_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+
+    static_configs:
+      - targets:
+          - ${TRADING_ENGINE_HOST:-localhost}:${TRADING_ENGINE_METRICS_PORT:-8002}
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: trading_engine
+
+  # Node Exporter (System metrics)
+  - job_name: node_exporter
+    scrape_interval: ${SCRAPE_NODE_INTERVAL:-30s}
+    scrape_timeout: ${SCRAPE_NODE_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+
+    static_configs:
+      - targets:
+          - ${NODE_EXPORTER_HOST:-localhost}:${NODE_EXPORTER_PORT:-9100}
+        labels:
+          group: system
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: node_exporter
+
+  # PostgreSQL Exporter (Database metrics)
+  - job_name: postgres_exporter
+    scrape_interval: ${SCRAPE_PG_INTERVAL:-30s}
+    scrape_timeout: ${SCRAPE_PG_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+
+    static_configs:
+      - targets:
+          - ${POSTGRES_EXPORTER_HOST:-localhost}:${POSTGRES_EXPORTER_PORT:-9187}
+        labels:
+          database: ${POSTGRES_EXPORTER_DB:-quantum_trader}
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: postgres_exporter
+
+  # Redis Exporter (Cache metrics)
+  - job_name: redis_exporter
+    scrape_interval: ${SCRAPE_REDIS_INTERVAL:-30s}
+    scrape_timeout: ${SCRAPE_REDIS_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+
+    static_configs:
+      - targets:
+          - ${REDIS_EXPORTER_HOST:-localhost}:${REDIS_EXPORTER_PORT:-9121}
+        labels:
+          redis_db: ${REDIS_EXPORTER_DB:-0}
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: redis_exporter
+
+  # RabbitMQ Exporter (Message queue metrics)
+  - job_name: rabbitmq_exporter
+    scrape_interval: ${SCRAPE_RABBITMQ_INTERVAL:-30s}
+    scrape_timeout: ${SCRAPE_RABBITMQ_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+
+    static_configs:
+      - targets:
+          - ${RABBITMQ_EXPORTER_HOST:-localhost}:${RABBITMQ_EXPORTER_PORT:-9419}
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: rabbitmq_exporter
+
+  # cAdvisor (Container metrics)
+  - job_name: cadvisor
+    scrape_interval: ${SCRAPE_CADVISOR_INTERVAL:-30s}
+    scrape_timeout: ${SCRAPE_CADVISOR_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+
+    static_configs:
+      - targets:
+          - ${CADVISOR_HOST:-localhost}:${CADVISOR_PORT:-8080}
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - target_label: service
+        replacement: cadvisor
+
+  # Pushgateway for batch jobs
+  - job_name: pushgateway
+    scrape_interval: ${SCRAPE_PG_INTERVAL:-15s}
+    scrape_timeout: ${SCRAPE_PG_TIMEOUT:-10s}
+    metrics_path: /metrics
+    scheme: http
+
+    static_configs:
+      - targets:
+          - ${PUSHGATEWAY_HOST:-localhost}:${PUSHGATEWAY_PORT:-9091}
+
+    honor_labels: true
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+# Remote storage configuration (optional)
+remote_write:
+  - url: ${PROMETHEUS_REMOTE_WRITE_URL}
+    queue_config:
+      capacity: ${PROMETHEUS_QUEUE_CAPACITY:-10000}
+      max_shards: ${PROMETHEUS_MAX_SHARDS:-200}
+      min_shards: ${PROMETHEUS_MIN_SHARDS:-1}
+      max_samples_per_send: ${PROMETHEUS_MAX_SAMPLES:-500}
+      batch_send_timeout: ${PROMETHEUS_BATCH_TIMEOUT:-5s}
+      min_backoff: ${PROMETHEUS_MIN_BACKOFF:-30ms}
+      max_backoff: ${PROMETHEUS_MAX_BACKOFF:-100ms}
+    write_relabel_configs: []
+  enabled: ${PROMETHEUS_REMOTE_WRITE_ENABLED:-false}
+
+# Storage configuration
+storage:
+  tsdb:
+    path: ${PROMETHEUS_STORAGE_PATH:-/prometheus}
+    retention:
+      # 30 days retention by default
+      time: ${PROMETHEUS_RETENTION_TIME:-30d}
+      size: ${PROMETHEUS_RETENTION_SIZE:-50GB}

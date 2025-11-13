@@ -1,0 +1,324 @@
+# ============================================================================
+# Quantum Trader AI - Docker Compose Configuration
+# ============================================================================
+# Production-ready multi-container setup for institutional trading system
+# ============================================================================
+
+version: '3.9'
+
+networks:
+  quantum_trader_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${SUBNET:-172.28.0.0/16}
+
+volumes:
+  timescaledb_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+  ml_models:
+    driver: local
+  backups:
+    driver: local
+
+services:
+  # ==========================================================================
+  # Database Services
+  # ==========================================================================
+
+  timescaledb:
+    image: timescale/timescaledb-ha:pg16-latest
+    container_name: quantum_trader_timescaledb
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TIMESCALEDB_TELEMETRY: 'off'
+      TS_TUNE_MEMORY: ${TS_TUNE_MEMORY:-8GB}
+      TS_TUNE_NUM_CPUS: ${TS_TUNE_NUM_CPUS:-4}
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./database/backups:/backups
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - quantum_trader_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    command: postgres -c shared_preload_libraries=timescaledb -c max_connections=${DB_MAX_CONNECTIONS:-200}
+
+  redis:
+    image: redis:7-alpine
+    container_name: quantum_trader_redis
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory ${REDIS_MAX_MEMORY:-2gb}
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - quantum_trader_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Core Trading Services
+  # ==========================================================================
+
+  bot:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/quantum-trader/bot:${IMAGE_TAG:-latest}
+    container_name: quantum_trader_bot
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Exchange API Keys (from secrets)
+      BINANCE_API_KEY: ${BINANCE_API_KEY}
+      BINANCE_SECRET: ${BINANCE_SECRET}
+      BYBIT_API_KEY: ${BYBIT_API_KEY}
+      BYBIT_SECRET: ${BYBIT_SECRET}
+      OKX_API_KEY: ${OKX_API_KEY}
+      OKX_SECRET: ${OKX_SECRET}
+      OKX_PASSPHRASE: ${OKX_PASSPHRASE}
+      # Security
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - quantum_trader_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${BOT_CPU_LIMIT:-2}'
+          memory: ${BOT_MEMORY_LIMIT:-4G}
+        reservations:
+          cpus: '${BOT_CPU_RESERVE:-1}'
+          memory: ${BOT_MEMORY_RESERVE:-2G}
+
+  ml_engine:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/quantum-trader/ml-engine:${IMAGE_TAG:-latest}
+    container_name: quantum_trader_ml
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      USE_GPU: ${USE_GPU:-false}
+      CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-0}
+    volumes:
+      - ./config:/app/config:ro
+      - ml_models:/app/models
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${ML_CPU_LIMIT:-4}'
+          memory: ${ML_MEMORY_LIMIT:-8G}
+        reservations:
+          cpus: '${ML_CPU_RESERVE:-2}'
+          memory: ${ML_MEMORY_RESERVE:-4G}
+
+  api:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/quantum-trader/api:${IMAGE_TAG:-latest}
+    container_name: quantum_trader_api
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DB_HOST: timescaledb
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    networks:
+      - quantum_trader_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  dashboard:
+    image: ${DOCKER_REGISTRY:-ghcr.io}/quantum-trader/dashboard:${IMAGE_TAG:-latest}
+    container_name: quantum_trader_dashboard
+    depends_on:
+      - api
+    environment:
+      VITE_API_URL: ${API_URL:-http://api:8000}
+      VITE_WS_URL: ${WS_URL:-ws://api:8001}
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Monitoring Services
+  # ==========================================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: quantum_trader_prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: quantum_trader_grafana
+    depends_on:
+      - prometheus
+      - timescaledb
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_INSTALL_PLUGINS: ${GRAFANA_PLUGINS:-}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    container_name: quantum_trader_loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: quantum_trader_promtail
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    volumes:
+      - ./monitoring/promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - ./logs:/var/log/quantum_trader:ro
+      - /var/log:/var/log/host:ro
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: quantum_trader_alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Utility Services
+  # ==========================================================================
+
+  nginx:
+    image: nginx:alpine
+    container_name: quantum_trader_nginx
+    depends_on:
+      - api
+      - dashboard
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    networks:
+      - quantum_trader_net
+    restart: unless-stopped

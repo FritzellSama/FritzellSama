@@ -1,0 +1,248 @@
+---
+# Ansible tasks to install and configure Docker for production
+# Includes Docker Engine, Docker Compose, and security hardening
+
+- name: Update system package manager cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+  tags:
+    - docker
+    - packages
+
+- name: Install Docker prerequisites
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - software-properties-common
+      - python3-pip
+      - python3-docker
+    state: present
+  become: yes
+  tags:
+    - docker
+    - packages
+
+- name: Add Docker GPG key
+  apt_key:
+    url: "https://download.docker.com/linux/ubuntu/gpg"
+    state: present
+  become: yes
+  tags:
+    - docker
+    - security
+
+- name: Add Docker repository
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+  become: yes
+  tags:
+    - docker
+    - packages
+
+- name: Install Docker Engine and CLI
+  apt:
+    name:
+      - "docker-ce={{ docker_version | default('5:24.0.6-1~ubuntu.22.04~jammy') }}"
+      - "docker-ce-cli={{ docker_version | default('5:24.0.6-1~ubuntu.22.04~jammy') }}"
+      - "containerd.io={{ containerd_version | default('1.7.8-1') }}"
+      - "docker-compose-plugin={{ docker_compose_version | default('2.20.2-1~ubuntu~22.04~jammy') }}"
+    state: present
+  become: yes
+  tags:
+    - docker
+    - packages
+
+- name: Install Docker Compose (standalone)
+  get_url:
+    url: "{{ docker_compose_url | default('https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-linux-x86_64') }}"
+    dest: /usr/local/bin/docker-compose
+    mode: '0755'
+  become: yes
+  tags:
+    - docker
+    - packages
+
+- name: Create docker configuration directory
+  file:
+    path: /etc/docker
+    state: directory
+    mode: '0755'
+  become: yes
+  tags:
+    - docker
+    - config
+
+- name: Configure Docker daemon with production settings
+  copy:
+    content: |
+      {
+        "log-driver": "{{ docker_log_driver | default('json-file') }}",
+        "log-opts": {
+          "max-size": "{{ docker_log_max_size | default('100m') }}",
+          "max-file": "{{ docker_log_max_file | default('3') }}"
+        },
+        "registry-mirrors": ["{{ docker_registry_mirror | default('') }}"],
+        "storage-driver": "{{ docker_storage_driver | default('overlay2') }}",
+        "insecure-registries": [],
+        "live-restore": true,
+        "userland-proxy": false,
+        "experimental": false,
+        "metrics-addr": "{{ docker_metrics_addr | default('0.0.0.0:9323') }}",
+        "default-ulimits": {
+          "nofile": {
+            "Name": "nofile",
+            "Hard": 65536,
+            "Soft": 65536
+          },
+          "nproc": {
+            "Name": "nproc",
+            "Hard": 4096,
+            "Soft": 4096
+          }
+        }
+      }
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify: restart docker
+  tags:
+    - docker
+    - config
+
+- name: Create docker group
+  group:
+    name: docker
+    state: present
+  become: yes
+  tags:
+    - docker
+    - users
+
+- name: Add user to docker group
+  user:
+    name: "{{ docker_user | default('ubuntu') }}"
+    groups: docker
+    append: yes
+  become: yes
+  tags:
+    - docker
+    - users
+
+- name: Enable and start Docker service
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+    daemon_reload: yes
+  become: yes
+  tags:
+    - docker
+    - service
+
+- name: Configure Docker storage pool
+  block:
+    - name: Check if loop device is configured
+      stat:
+        path: /var/lib/docker/devicemapper/devicemapper/data
+      register: dm_data
+
+    - name: Set up devicemapper storage driver for production
+      become: yes
+      block:
+        - name: Create docker storage directory
+          file:
+            path: /var/lib/docker-storage
+            state: directory
+            mode: '0755'
+
+        - name: Create loop device for Docker storage
+          command: "dd if=/dev/zero of=/var/lib/docker-storage/docker-pool bs=1G count={{ docker_storage_size_gb | default('50') }}"
+          args:
+            creates: /var/lib/docker-storage/docker-pool
+  tags:
+    - docker
+    - storage
+
+- name: Configure Docker to use custom storage location
+  lineinfile:
+    path: /etc/docker/daemon.json
+    regexp: '"data-root"'
+    line: '    "data-root": "{{ docker_data_root | default('/var/lib/docker') }}",'
+    insertafter: '{'
+  become: yes
+  notify: restart docker
+  tags:
+    - docker
+    - config
+
+- name: Set up log rotation for Docker logs
+  copy:
+    content: |
+      /var/lib/docker/containers/*/*.log {
+        rotate 5
+        daily
+        compress
+        missingok
+        delaycompress
+        copytruncate
+      }
+    dest: /etc/logrotate.d/docker-container
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  tags:
+    - docker
+    - logging
+
+- name: Configure Docker socket permissions
+  file:
+    path: /var/run/docker.sock
+    owner: root
+    group: docker
+    mode: '0660'
+  become: yes
+  tags:
+    - docker
+    - security
+
+- name: Install docker-compose Python module
+  pip:
+    name: docker-compose
+    state: present
+  become: yes
+  tags:
+    - docker
+    - python
+
+- name: Verify Docker installation
+  command: docker --version
+  register: docker_version_output
+  changed_when: false
+  tags:
+    - docker
+    - verify
+
+- name: Display Docker version
+  debug:
+    msg: "Docker installed: {{ docker_version_output.stdout }}"
+  tags:
+    - docker
+    - verify
+
+handlers:
+  - name: restart docker
+    systemd:
+      name: docker
+      state: restarted
+      daemon_reload: yes
+    become: yes

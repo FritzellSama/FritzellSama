@@ -1,0 +1,233 @@
+# Quantum Trader AI - Python Dependencies
+# ============================================
+# Core Framework & Web
+# ============================================
+Flask==2.3.3
+Flask-RESTful==0.3.10
+Flask-CORS==4.0.0
+fastapi==0.104.1
+uvicorn==0.24.0
+Werkzeug==2.3.7
+python-dotenv==1.0.0
+
+# ============================================
+# Data Processing & Analysis
+# ============================================
+pandas==2.1.1
+numpy==1.24.3
+scipy==1.11.3
+scikit-learn==1.3.2
+
+# ============================================
+# Database & ORM
+# ============================================
+SQLAlchemy==2.0.21
+psycopg2-binary==2.9.9
+alembic==1.12.1
+redis==5.0.1
+
+# ============================================
+# Time Series & Financial Data
+# ============================================
+pandas-ta==0.3.14b
+TA-Lib==0.4.28
+yfinance==0.2.32
+alpha-vantage==1.3.1
+finnhub-python==1.2.11
+polygon-io==1.13.1
+
+# ============================================
+# Machine Learning & AI
+# ============================================
+tensorflow==2.14.0
+keras==2.14.0
+torch==2.0.1
+scikit-optimize==0.9.1
+xgboost==2.0.1
+lightgbm==4.0.0
+
+# ============================================
+# Notification & Communication
+# ============================================
+requests==2.31.0
+aiohttp==3.9.0
+smtplib-ssl==1.0
+Jinja2==3.1.2
+pydantic==2.4.2
+
+# Email
+python-smtplib==1.0.14
+email-validator==2.1.0
+
+# SMS & Messaging
+twilio==8.11.0
+slack-sdk==3.23.0
+discord.py==2.3.2
+
+# ============================================
+# Logging & Monitoring
+# ============================================
+python-json-logger==2.0.7
+prometheus-client==0.18.0
+sentry-sdk==1.39.2
+structlog==23.2.0
+
+# ============================================
+# Authentication & Security
+# ============================================
+PyJWT==2.8.1
+cryptography==41.0.6
+python-jose==3.3.0
+passlib==1.7.4
+bcrypt==4.1.1
+
+# ============================================
+# Testing & Quality
+# ============================================
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-asyncio==0.21.1
+black==23.12.0
+flake8==6.1.0
+pylint==3.0.3
+mypy==1.7.1
+coverage==7.3.2
+
+# ============================================
+# Utilities & Helpers
+# ============================================
+python-dateutil==2.8.2
+pytz==2023.3
+click==8.1.7
+tqdm==4.66.1
+colorama==0.4.6
+tabulate==0.9.0
+pyyaml==6.0.1
+
+# ============================================
+# Async & Concurrency
+# ============================================
+asyncio==3.4.3
+aiofiles==23.2.1
+celery==5.3.4
+celery-beat==2.5.0
+
+# ============================================
+# Documentation
+# ============================================
+Sphinx==7.2.6
+sphinx-rtd-theme==2.0.0
+
+# ============================================
+# Development Tools
+# ============================================
+ipython==8.17.2
+jupyter==1.0.0
+notebook==7.0.5
+
+# ============================================
+# Performance & Caching
+# ============================================
+cachetools==5.3.2
+functools32==3.2.3
+lru-dict==1.2.0
+
+# ============================================
+# Database Tools
+# ============================================
+pgcli==4.0.1
+dbt-postgres==1.7.0
+
+# ============================================
+# Environment & Configuration
+# ============================================
+python-decouple==3.8
+environs==10.0.0
+dynaconf==3.2.0
+
+# ============================================
+# API & Integration
+# ============================================
+graphene==3.3
+graphql-core==3.2.3
+marshmallow==3.20.1
+APIFairy==1.1.1
+
+# ============================================
+# Web Scraping & Parsing
+# ============================================
+beautifulsoup4==4.12.2
+lxml==4.9.3
+feedparser==6.0.10
+
+# ============================================
+# Cloud & Deployment
+# ============================================
+boto3==1.28.81
+azure-storage-blob==12.18.3
+google-cloud-storage==2.13.0
+
+# ============================================
+# Containerization & Orchestration
+# ============================================
+docker==6.1.0
+kubernetes==28.0.0
+
+# ============================================
+# Deployment & DevOps
+# ============================================
+ansible==2.10.17
+paramiko==3.4.0
+fabric==3.2.2
+
+# ============================================
+# Version Control & CI/CD
+# ============================================
+GitPython==3.1.40
+pygit2==1.13.3
+
+# ============================================
+# Code Quality & Analysis
+# ============================================
+bandit==1.7.5
+safety==2.3.5
+radon==6.0.1
+
+# ============================================
+# Debugging & Profiling
+# ============================================
+py-spy==0.3.14
+memory-profiler==0.61.0
+line-profiler==4.1.1
+
+# ============================================
+# Optional: Advanced Features
+# ============================================
+# Uncomment if using advanced features
+
+# Real-time data streaming
+# kafka-python==2.0.2
+
+# WebSocket support
+# websockets==12.0
+# python-socketio==5.10.0
+
+# Image processing
+# Pillow==10.1.0
+# opencv-python==4.8.1.78
+
+# Advanced visualization
+# plotly==5.18.0
+# matplotlib==3.8.2
+# seaborn==0.13.0
+
+# Scheduling
+# schedule==1.2.0
+# APScheduler==3.10.4
+
+# Data validation
+# jsonschema==4.20.0
+
+# Rate limiting
+# ratelimit==2.2.1
+# limits==3.6.0

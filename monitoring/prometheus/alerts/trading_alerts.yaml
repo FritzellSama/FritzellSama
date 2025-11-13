@@ -1,0 +1,378 @@
+# Prometheus Alert Rules for Trading Operations
+# Quantum Trader AI - Trading-Specific Alerts
+# Production-grade alerting for trading performance and risk
+
+groups:
+  - name: trading_alerts
+    interval: 15s
+    rules:
+      # Risk Limit Alerts
+      - alert: PortfolioRiskExceeded
+        expr: trading_portfolio_risk_percent > trading_max_portfolio_risk_limit
+        for: 1m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Portfolio risk exceeded limit"
+          description: "Portfolio risk is {{ $value }}% (limit: {{ $labels.max_limit }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/portfolio_risk_exceeded"
+          action: "Reduce position sizes or close positions immediately"
+
+      - alert: DailyLossLimitApproaching
+        expr: trading_daily_loss_percent < trading_max_daily_loss_percent * 0.8 and trading_daily_loss_percent < 0
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Daily loss limit approaching"
+          description: "Daily loss is {{ $value }}% (limit: {{ $labels.max_limit }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/daily_loss_approaching"
+          action: "Monitor positions closely, prepare to reduce exposure"
+
+      - alert: DailyLossLimitBreached
+        expr: trading_daily_loss_percent <= trading_max_daily_loss_percent * -1
+        for: 1m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Daily loss limit breached - trading halted"
+          description: "Daily loss is {{ $value }}% (limit: {{ $labels.max_limit }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/daily_loss_breached"
+          action: "Trading automatically disabled - manual review required"
+
+      # Position Management Alerts
+      - alert: TooManyOpenPositions
+        expr: trading_open_positions_count > trading_max_position_limit * 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Open positions near limit"
+          description: "Open positions: {{ $value }} (limit: {{ $labels.max_limit }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/positions_near_limit"
+          action: "Close some positions to reduce concentration risk"
+
+      - alert: PositionSizeExceeded
+        expr: trading_max_position_size_percent > trading_max_position_limit
+        for: 2m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Maximum position size exceeded"
+          description: "Position size: {{ $value }}% (limit: {{ $labels.max_limit }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/position_size_exceeded"
+          action: "Reduce position size to comply with limits"
+
+      - alert: SectorOverconcentration
+        expr: max(trading_sector_exposure_percent) > trading_max_sector_exposure_limit
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Sector concentration risk exceeded"
+          description: "Sector exposure: {{ $value }}% (limit: {{ $labels.max_limit }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/sector_overconcentration"
+          action: "Rebalance portfolio to reduce sector risk"
+
+      # Order Execution Alerts
+      - alert: OrderExecutionFailure
+        expr: increase(trading_failed_orders_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Multiple order execution failures"
+          description: "Failed orders in last 5m: {{ $value }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/order_execution_failure"
+          action: "Check broker connection and order validation"
+
+      - alert: HighOrderRejectionRate
+        expr: (trading_rejected_orders_total / (trading_rejected_orders_total + trading_accepted_orders_total)) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "High order rejection rate"
+          description: "Rejection rate: {{ $value | humanizePercentage }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/order_rejection_rate_high"
+          action: "Review order parameters and broker requirements"
+
+      - alert: OrderTimeoutFrequent
+        expr: increase(trading_order_timeouts_total[5m]) > 3
+        for: 3m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Frequent order timeouts"
+          description: "Timeouts in last 5m: {{ $value }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/order_timeouts"
+          action: "Increase order timeout or investigate broker latency"
+
+      # Fill Quality Alerts
+      - alert: SlippageThresholdExceeded
+        expr: trading_average_slippage_percent > trading_max_slippage_limit
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Slippage exceeds threshold"
+          description: "Average slippage: {{ $value }}% (limit: {{ $labels.max_limit }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/slippage_high"
+          action: "Review order size or adjust execution strategy"
+
+      - alert: PartialFillRate
+        expr: (trading_partial_fills_total / trading_total_fills) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "High partial fill rate"
+          description: "Partial fills: {{ $value | humanizePercentage }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/partial_fills_high"
+          action: "Reduce order size or improve liquidity analysis"
+
+      # Liquidity Alerts
+      - alert: LiquidityCheckFailure
+        expr: increase(trading_liquidity_check_failures_total[5m]) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Liquidity check failures detected"
+          description: "Liquidity check failures in last 5m: {{ $value }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/liquidity_checks_failing"
+          action: "Verify market data feed and bid-ask spreads"
+
+      - alert: BidAskSpreadWidened
+        expr: trading_average_spread_percent > trading_normal_spread_percent * 1.5
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Bid-ask spreads widened significantly"
+          description: "Average spread: {{ $value }}% (normal: {{ $labels.normal }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/spreads_widened"
+          action: "Adjust order parameters or wait for better liquidity"
+
+      # Market Condition Alerts
+      - alert: HighVolatilityMarketCondition
+        expr: trading_market_volatility > trading_volatility_threshold
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Market volatility exceeds threshold"
+          description: "Volatility: {{ $value }} (threshold: {{ $labels.threshold }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/high_volatility"
+          action: "Reduce position sizes and increase stop-loss distance"
+
+      - alert: MarketStressDetected
+        expr: trading_market_stress_indicator > 0.75
+        for: 2m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Market stress conditions detected"
+          description: "Stress indicator: {{ $value }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/market_stress"
+          action: "Consider reducing exposure or hedging positions"
+
+      - alert: GapUp
+        expr: increase(trading_daily_gap_percent[1h]) > 3
+        for: 2m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Gap up detected in market"
+          description: "Gap: {{ $value }}%"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/gap_up"
+          action: "Review positions and adjust stop-losses accordingly"
+
+      - alert: GapDown
+        expr: increase(trading_daily_gap_percent[1h]) < -3
+        for: 2m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Gap down detected in market"
+          description: "Gap: {{ $value }}%"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/gap_down"
+          action: "Review positions and adjust stop-losses accordingly"
+
+      # P&L Alerts
+      - alert: UnrealizedLossAlert
+        expr: trading_total_unrealized_pnl_usd < 0 and abs(trading_total_unrealized_pnl_usd) > trading_unrealized_loss_threshold_usd
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Significant unrealized loss"
+          description: "Unrealized loss: ${{ $value | humanize }} (threshold: ${{ $labels.threshold }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/unrealized_loss"
+          action: "Review losing positions and consider closing"
+
+      - alert: DrawdownAlert
+        expr: (trading_peak_equity - trading_current_equity) / trading_peak_equity > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Portfolio drawdown exceeds threshold"
+          description: "Current drawdown: {{ $value | humanizePercentage }} (limit: 10%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/drawdown_alert"
+          action: "Consider reducing positions to limit further losses"
+
+      # Strategy Performance Alerts
+      - alert: StrategyPerformanceDegradation
+        expr: trading_strategy_win_rate < trading_strategy_min_win_rate
+        for: 10m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Strategy performance degraded"
+          description: "Win rate: {{ $value | humanizePercentage }} (minimum: {{ $labels.min_rate }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/strategy_degradation"
+          action: "Pause strategy and backtest with recent data"
+
+      - alert: NegativeSharpeRatio
+        expr: trading_strategy_sharpe_ratio < 0
+        for: 15m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Strategy has negative Sharpe ratio"
+          description: "Sharpe ratio: {{ $value }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/sharpe_negative"
+          action: "Review strategy parameters and consider deactivation"
+
+      - alert: MaxDrawdownExceeded
+        expr: trading_strategy_max_drawdown > trading_strategy_max_drawdown_limit
+        for: 10m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Strategy maximum drawdown exceeded"
+          description: "Max drawdown: {{ $value | humanizePercentage }} (limit: {{ $labels.limit }}%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/max_drawdown_exceeded"
+          action: "Deactivate strategy immediately"
+
+      # Broker Connection Alerts
+      - alert: BrokerConnectionLost
+        expr: trading_broker_connection_status == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Broker connection lost - {{ $labels.broker }}"
+          description: "Connection to {{ $labels.broker }} is down"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/broker_connection_lost"
+          action: "Reconnect immediately, switch to fallback broker if available"
+
+      - alert: BrokerAuthenticationFailed
+        expr: increase(trading_broker_auth_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Broker authentication failed - {{ $labels.broker }}"
+          description: "Auth failures for {{ $labels.broker }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/broker_auth_failed"
+          action: "Check credentials and broker status immediately"
+
+      - alert: BrokerDataFeedLag
+        expr: trading_broker_data_feed_lag_seconds > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Broker data feed lag detected"
+          description: "Data lag: {{ $value }}s (threshold: 10s)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/broker_data_lag"
+          action: "Monitor data quality, may affect order execution"
+
+      # Account Status Alerts
+      - alert: LowAccountBalance
+        expr: trading_account_balance < trading_min_account_balance
+        for: 5m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Account balance below minimum required"
+          description: "Balance: ${{ $value | humanize }} (minimum: ${{ $labels.min_balance }})"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/low_account_balance"
+          action: "Deposit funds immediately to avoid trading restrictions"
+
+      - alert: MarginCallRisk
+        expr: trading_margin_utilization_percent > 80
+        for: 5m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Margin utilization dangerously high"
+          description: "Margin usage: {{ $value }}% (risk: > 90%)"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/margin_call_risk"
+          action: "Reduce leverage or close positions immediately"
+
+      - alert: BuyingPowerLow
+        expr: trading_available_buying_power < trading_min_buying_power
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Available buying power low"
+          description: "Buying power: ${{ $value | humanize }}"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/buying_power_low"
+          action: "Reduce position size or wait for margin availability"
+
+      # Service Health Alerts
+      - alert: TradingEngineDown
+        expr: up{job="trading_engine"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Trading engine is down"
+          description: "Trading engine on {{ $labels.instance }} is not responding"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/trading_engine_down"
+          action: "Restart trading engine and verify all orders are closed"
+
+      - alert: APIResponseTimeSlow
+        expr: histogram_quantile(0.99, rate(trading_api_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "Trading API response time is slow"
+          description: "P99 latency: {{ $value }}s"
+          runbook_url: "https://internal.docs.quantum-trader.production/runbooks/api_slow"
+          action: "Check API server load and database performance"

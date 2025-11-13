@@ -1,0 +1,559 @@
+---
+# Ansible tasks to install and configure monitoring stack
+# Includes Prometheus, Grafana, Loki, and Alertmanager for production
+
+- name: Create monitoring user
+  user:
+    name: "{{ monitoring_user | default('monitoring') }}"
+    shell: /bin/false
+    home: /var/lib/monitoring
+    createhome: yes
+    system: yes
+  become: yes
+  tags:
+    - monitoring
+    - users
+
+- name: Create monitoring directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ monitoring_user | default('monitoring') }}"
+    group: "{{ monitoring_user | default('monitoring') }}"
+    mode: '0755'
+  loop:
+    - /etc/prometheus
+    - /var/lib/prometheus
+    - /var/lib/prometheus/tsdb
+    - /etc/grafana
+    - /etc/grafana/provisioning/dashboards
+    - /etc/grafana/provisioning/datasources
+    - /etc/loki
+    - /var/lib/loki
+    - /etc/alertmanager
+    - /var/lib/alertmanager
+  become: yes
+  tags:
+    - monitoring
+    - directories
+
+- name: Download and install Prometheus
+  block:
+    - name: Download Prometheus binary
+      get_url:
+        url: "{{ prometheus_download_url | default('https://github.com/prometheus/prometheus/releases/download/v2.45.0/prometheus-2.45.0.linux-amd64.tar.gz') }}"
+        dest: /tmp/prometheus.tar.gz
+        checksum: "{{ prometheus_checksum | default('omit') }}"
+      register: prometheus_download
+      tags:
+        - monitoring
+        - prometheus
+
+    - name: Extract Prometheus
+      unarchive:
+        src: /tmp/prometheus.tar.gz
+        dest: /tmp
+        remote_src: yes
+      tags:
+        - monitoring
+        - prometheus
+
+    - name: Copy Prometheus binary
+      copy:
+        src: "/tmp/prometheus-2.45.0.linux-amd64/prometheus"
+        dest: "/usr/local/bin/prometheus"
+        remote_src: yes
+        mode: '0755'
+      become: yes
+      tags:
+        - monitoring
+        - prometheus
+
+    - name: Copy Promtool
+      copy:
+        src: "/tmp/prometheus-2.45.0.linux-amd64/promtool"
+        dest: "/usr/local/bin/promtool"
+        remote_src: yes
+        mode: '0755'
+      become: yes
+      tags:
+        - monitoring
+        - prometheus
+
+    - name: Clean up download
+      file:
+        path: "/tmp/prometheus-2.45.0.linux-amd64"
+        state: absent
+      tags:
+        - monitoring
+        - prometheus
+  become: yes
+
+- name: Configure Prometheus
+  copy:
+    content: |
+      # Prometheus configuration for quantum trader AI
+      global:
+        scrape_interval: {{ prometheus_scrape_interval | default('15s') }}
+        evaluation_interval: {{ prometheus_evaluation_interval | default('15s') }}
+        external_labels:
+          monitor: "{{ prometheus_monitor_name | default('quantum-trader-prod') }}"
+          environment: "{{ prometheus_environment | default('production') }}"
+
+      # Alertmanager configuration
+      alerting:
+        alertmanagers:
+          - static_configs:
+              - targets:
+                  - "{{ alertmanager_host | default('localhost') }}:{{ alertmanager_port | default('9093') }}"
+
+      # Rule files
+      rule_files:
+        - '/etc/prometheus/rules/*.yaml'
+
+      # Scrape configurations
+      scrape_configs:
+        # Prometheus self-monitoring
+        - job_name: 'prometheus'
+          static_configs:
+            - targets: ['localhost:9090']
+          scrape_interval: 30s
+          scrape_timeout: 10s
+
+        # Docker metrics
+        - job_name: 'docker'
+          static_configs:
+            - targets: ['{{ docker_metrics_host | default('localhost') }}:9323']
+          scrape_interval: 30s
+          scrape_timeout: 10s
+
+        # Node exporter metrics
+        - job_name: 'node'
+          static_configs:
+            - targets: ['{{ node_exporter_host | default('localhost') }}:9100']
+          scrape_interval: 30s
+          scrape_timeout: 10s
+
+        # Application metrics
+        - job_name: 'quantum-trader'
+          static_configs:
+            - targets: ['{{ app_metrics_host | default('localhost') }}:{{ app_metrics_port | default('8888') }}']
+          scrape_interval: 15s
+          scrape_timeout: 10s
+          metrics_path: '/metrics'
+
+        # ML service metrics
+        - job_name: 'ml-service'
+          static_configs:
+            - targets: ['{{ ml_metrics_host | default('localhost') }}:{{ ml_metrics_port | default('8889') }}']
+          scrape_interval: 15s
+          scrape_timeout: 10s
+
+      # Service discovery
+      service_discovery_configs:
+        - type: 'static'
+          targets: []
+    dest: /etc/prometheus/prometheus.yml
+    owner: "{{ monitoring_user | default('monitoring') }}"
+    group: "{{ monitoring_user | default('monitoring') }}"
+    mode: '0644'
+  become: yes
+  notify: restart prometheus
+  tags:
+    - monitoring
+    - prometheus
+    - config
+
+- name: Create Prometheus systemd service
+  copy:
+    content: |
+      [Unit]
+      Description=Prometheus
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=simple
+      User={{ monitoring_user | default('monitoring') }}
+      Group={{ monitoring_user | default('monitoring') }}
+      ExecStart=/usr/local/bin/prometheus \
+        --config.file=/etc/prometheus/prometheus.yml \
+        --storage.tsdb.path=/var/lib/prometheus/tsdb \
+        --web.console.templates=/etc/prometheus/consoles \
+        --web.console.libraries=/etc/prometheus/console_libraries \
+        --web.listen-address=0.0.0.0:9090 \
+        --web.external-url={{ prometheus_external_url | default('http://localhost:9090') }}
+
+      SyslogIdentifier=prometheus
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/prometheus.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify: daemon reload
+  tags:
+    - monitoring
+    - prometheus
+    - service
+
+- name: Download and install Grafana
+  block:
+    - name: Download Grafana
+      get_url:
+        url: "{{ grafana_download_url | default('https://dl.grafana.com/oss/release/grafana-10.1.0.linux-amd64.tar.gz') }}"
+        dest: /tmp/grafana.tar.gz
+      tags:
+        - monitoring
+        - grafana
+
+    - name: Extract Grafana
+      unarchive:
+        src: /tmp/grafana.tar.gz
+        dest: /opt
+        remote_src: yes
+      become: yes
+      tags:
+        - monitoring
+        - grafana
+
+    - name: Create Grafana symlink
+      file:
+        src: /opt/grafana-10.1.0
+        dest: /opt/grafana
+        state: link
+      become: yes
+      tags:
+        - monitoring
+        - grafana
+  become: yes
+
+- name: Configure Grafana
+  copy:
+    content: |
+      [security]
+      admin_user = {{ grafana_admin_user | default('admin') }}
+      admin_password = $__env_GF_SECURITY_ADMIN_PASSWORD
+      secret_key = $__env_GF_SECURITY_SECRET_KEY
+      disable_brute_force_login_protection = false
+
+      [server]
+      http_port = {{ grafana_port | default('3000') }}
+      domain = {{ grafana_domain | default('localhost') }}
+      root_url = {{ grafana_root_url | default('http://localhost:3000') }}
+      serve_from_sub_path = false
+      router_logging = false
+
+      [database]
+      type = {{ grafana_db_type | default('sqlite3') }}
+      host = {{ grafana_db_host | default('localhost:5432') }}
+      name = {{ grafana_db_name | default('grafana') }}
+      user = $__env_GF_DATABASE_USER
+      password = $__env_GF_DATABASE_PASSWORD
+      max_idle_conn = 2
+      max_open_conn = 0
+
+      [paths]
+      data = /var/lib/grafana
+      logs = /var/log/grafana
+      plugins = /var/lib/grafana/plugins
+
+      [analytics]
+      reporting_enabled = false
+      check_for_plugin_updates = false
+
+      [auth]
+      disable_login_form = false
+      disable_signout_link = false
+
+      [auth.anonymous]
+      enabled = false
+
+      [feature_toggles]
+      enable_ngalert = true
+    dest: /opt/grafana/conf/defaults.ini
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  environment:
+    GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password | default('') }}"
+    GF_SECURITY_SECRET_KEY: "{{ grafana_secret_key | default('') }}"
+    GF_DATABASE_USER: "{{ grafana_db_user | default('grafana') }}"
+    GF_DATABASE_PASSWORD: "{{ grafana_db_password | default('') }}"
+  notify: restart grafana
+  tags:
+    - monitoring
+    - grafana
+    - config
+
+- name: Create Grafana systemd service
+  copy:
+    content: |
+      [Unit]
+      Description=Grafana
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=simple
+      User=root
+      Group=root
+      ExecStart=/opt/grafana/bin/grafana-server \
+        --config=/opt/grafana/conf/defaults.ini
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/grafana.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify: daemon reload
+  tags:
+    - monitoring
+    - grafana
+    - service
+
+- name: Download and install Loki
+  block:
+    - name: Download Loki
+      get_url:
+        url: "{{ loki_download_url | default('https://github.com/grafana/loki/releases/download/v2.9.0/loki-linux-amd64.zip') }}"
+        dest: /tmp/loki.zip
+      tags:
+        - monitoring
+        - loki
+
+    - name: Extract Loki
+      unarchive:
+        src: /tmp/loki.zip
+        dest: /tmp
+        remote_src: yes
+      tags:
+        - monitoring
+        - loki
+
+    - name: Copy Loki binary
+      copy:
+        src: /tmp/loki-linux-amd64
+        dest: /usr/local/bin/loki
+        remote_src: yes
+        mode: '0755'
+      become: yes
+      tags:
+        - monitoring
+        - loki
+  become: yes
+
+- name: Configure Loki
+  copy:
+    content: |
+      auth_enabled: false
+
+      ingester:
+        chunk_idle_period: 3m
+        max_chunk_age: 1h
+        max_streams_per_user: 10000
+        chunk_retain_period: 1m
+
+      limits_config:
+        enforce_metric_name: false
+        reject_old_samples: true
+        reject_old_samples_max_age: 168h
+        ingestion_rate_mb: {{ loki_ingestion_rate_mb | default('100') }}
+        ingestion_burst_size_mb: {{ loki_burst_size_mb | default('150') }}
+
+      schema_config:
+        configs:
+          - from: 2020-10-24
+            store: boltdb-shipper
+            object_store: filesystem
+            schema: v11
+            index:
+              prefix: index_
+              period: 24h
+
+      server:
+        http_listen_port: {{ loki_port | default('3100') }}
+        log_level: {{ loki_log_level | default('info') }}
+
+      storage_config:
+        boltdb_shipper:
+          active_index_directory: /loki/boltdb-shipper-active
+          cache_location: /loki/boltdb-shipper-cache
+          shared_store: filesystem
+        filesystem:
+          directory: /loki/chunks
+
+      chunk_store_config:
+        max_look_back_period: 0s
+
+      table_manager:
+        retention_deletes_enabled: false
+        retention_period: 0s
+    dest: /etc/loki/loki-config.yaml
+    owner: "{{ monitoring_user | default('monitoring') }}"
+    group: "{{ monitoring_user | default('monitoring') }}"
+    mode: '0644'
+  become: yes
+  notify: restart loki
+  tags:
+    - monitoring
+    - loki
+    - config
+
+- name: Create Loki systemd service
+  copy:
+    content: |
+      [Unit]
+      Description=Loki
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=simple
+      User={{ monitoring_user | default('monitoring') }}
+      Group={{ monitoring_user | default('monitoring') }}
+      ExecStart=/usr/local/bin/loki -config.file=/etc/loki/loki-config.yaml
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/loki.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify: daemon reload
+  tags:
+    - monitoring
+    - loki
+    - service
+
+- name: Install Node Exporter for system metrics
+  block:
+    - name: Download Node Exporter
+      get_url:
+        url: "{{ node_exporter_download_url | default('https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz') }}"
+        dest: /tmp/node_exporter.tar.gz
+      tags:
+        - monitoring
+        - node-exporter
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /tmp
+        remote_src: yes
+      tags:
+        - monitoring
+        - node-exporter
+
+    - name: Copy Node Exporter binary
+      copy:
+        src: /tmp/node_exporter-1.6.1.linux-amd64/node_exporter
+        dest: /usr/local/bin/node_exporter
+        remote_src: yes
+        mode: '0755'
+      become: yes
+      tags:
+        - monitoring
+        - node-exporter
+  become: yes
+
+- name: Create Node Exporter systemd service
+  copy:
+    content: |
+      [Unit]
+      Description=Prometheus Node Exporter
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=simple
+      User=root
+      Group=root
+      ExecStart=/usr/local/bin/node_exporter \
+        --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/) \
+        --collector.netdev.device-exclude=^(veth.*)$
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify: daemon reload
+  tags:
+    - monitoring
+    - node-exporter
+    - service
+
+- name: Reload systemd and start monitoring services
+  systemd:
+    daemon_reload: yes
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  loop:
+    - prometheus
+    - grafana
+    - loki
+    - node_exporter
+  become: yes
+  tags:
+    - monitoring
+    - service
+
+- name: Verify monitoring services are running
+  systemd:
+    name: "{{ item }}"
+    state: started
+  register: service_status
+  until: service_status.status.ActiveState == "active"
+  retries: 3
+  delay: 10
+  loop:
+    - prometheus
+    - grafana
+    - loki
+    - node_exporter
+  become: yes
+  tags:
+    - monitoring
+    - verify
+
+handlers:
+  - name: daemon reload
+    systemd:
+      daemon_reload: yes
+    become: yes
+
+  - name: restart prometheus
+    systemd:
+      name: prometheus
+      state: restarted
+    become: yes
+
+  - name: restart grafana
+    systemd:
+      name: grafana
+      state: restarted
+    become: yes
+
+  - name: restart loki
+    systemd:
+      name: loki
+      state: restarted
+    become: yes

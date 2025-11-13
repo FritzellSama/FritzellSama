@@ -1,0 +1,265 @@
+# Risk Management Configuration
+# Quantum Trader AI - Production Risk Controls
+# All risk parameters are configurable via environment variables
+
+# Global Risk Settings
+global:
+  # Overall portfolio risk tolerance (percentage of account)
+  max_portfolio_risk_percent: ${RISK_MAX_PORTFOLIO_PERCENT:-2.0}
+
+  # Maximum daily loss limit in USD (circuit breaker)
+  max_daily_loss_usd: ${RISK_MAX_DAILY_LOSS_USD:-50000}
+
+  # Maximum daily loss percentage of account balance
+  max_daily_loss_percent: ${RISK_MAX_DAILY_LOSS_PERCENT:-5.0}
+
+  # Maximum intraday loss percentage
+  max_intraday_loss_percent: ${RISK_MAX_INTRADAY_LOSS_PERCENT:-3.0}
+
+  # Pause trading if loss threshold breached (seconds before resuming)
+  loss_pause_duration_seconds: ${RISK_LOSS_PAUSE_DURATION:-300}
+
+  # Enable position-level risk checks
+  enable_position_limits: ${RISK_ENABLE_POSITION_LIMITS:-true}
+
+  # Enable order-level risk checks
+  enable_order_limits: ${RISK_ENABLE_ORDER_LIMITS:-true}
+
+  # Risk assessment frequency (milliseconds)
+  assessment_frequency_ms: ${RISK_ASSESSMENT_FREQ_MS:-1000}
+
+# Position-Level Limits
+position_limits:
+  # Maximum position size per asset (percentage of account)
+  max_position_size_percent: ${RISK_MAX_POSITION_SIZE_PERCENT:-5.0}
+
+  # Maximum number of concurrent open positions
+  max_open_positions: ${RISK_MAX_OPEN_POSITIONS:-20}
+
+  # Maximum leverage allowed
+  max_leverage: ${RISK_MAX_LEVERAGE:-2.0}
+
+  # Minimum position size (in USD)
+  min_position_size_usd: ${RISK_MIN_POSITION_SIZE_USD:-500}
+
+  # Maximum position size per sector (percentage of portfolio)
+  max_sector_exposure_percent: ${RISK_MAX_SECTOR_EXPOSURE_PERCENT:-15.0}
+
+  # Maximum correlation between positions
+  max_position_correlation: ${RISK_MAX_POSITION_CORRELATION:-0.8}
+
+  # Reduce positions if correlation threshold breached
+  enable_correlation_hedging: ${RISK_ENABLE_CORRELATION_HEDGING:-true}
+
+# Stop-Loss Configuration
+stop_loss:
+  # Enable automatic stop-loss orders
+  enabled: ${RISK_STOP_LOSS_ENABLED:-true}
+
+  # Stop-loss percentage (e.g., 2.5 means -2.5% from entry)
+  default_stop_loss_percent: ${RISK_STOP_LOSS_PERCENT:-2.5}
+
+  # Maximum stop-loss percentage allowed
+  max_stop_loss_percent: ${RISK_MAX_STOP_LOSS_PERCENT:-10.0}
+
+  # Minimum stop-loss percentage
+  min_stop_loss_percent: ${RISK_MIN_STOP_LOSS_PERCENT:-0.5}
+
+  # Trailing stop-loss enabled
+  trailing_stop_enabled: ${RISK_TRAILING_STOP_ENABLED:-true}
+
+  # Trailing stop distance (percentage)
+  trailing_stop_percent: ${RISK_TRAILING_STOP_PERCENT:-1.5}
+
+  # Time-based stop-loss (close position after N hours if no profit)
+  time_stop_enabled: ${RISK_TIME_STOP_ENABLED:-true}
+  time_stop_hours: ${RISK_TIME_STOP_HOURS:-4}
+
+# Take-Profit Configuration
+take_profit:
+  # Enable automatic take-profit orders
+  enabled: ${RISK_TAKE_PROFIT_ENABLED:-true}
+
+  # Default take-profit target (percentage gain)
+  default_take_profit_percent: ${RISK_TAKE_PROFIT_PERCENT:-5.0}
+
+  # Partial take-profit enabled (close fraction at targets)
+  partial_profit_enabled: ${RISK_PARTIAL_PROFIT_ENABLED:-true}
+
+  # First take-profit at (percentage gain)
+  first_tp_percent: ${RISK_FIRST_TP_PERCENT:-2.0}
+
+  # Second take-profit at (percentage gain)
+  second_tp_percent: ${RISK_SECOND_TP_PERCENT:-4.0}
+
+  # Fraction to close at first target (percentage of position)
+  first_tp_close_percent: ${RISK_FIRST_TP_CLOSE_PERCENT:-25}
+
+  # Fraction to close at second target
+  second_tp_close_percent: ${RISK_SECOND_TP_CLOSE_PERCENT:-50}
+
+# Order Execution Risk Controls
+order_controls:
+  # Maximum order value in USD
+  max_order_value_usd: ${RISK_MAX_ORDER_VALUE_USD:-100000}
+
+  # Maximum orders per minute
+  max_orders_per_minute: ${RISK_MAX_ORDERS_PER_MINUTE:-10}
+
+  # Maximum orders per symbol per minute
+  max_orders_per_symbol_per_minute: ${RISK_MAX_ORDERS_PER_SYMBOL_PER_MIN:-5}
+
+  # Slippage tolerance (percentage)
+  max_slippage_percent: ${RISK_MAX_SLIPPAGE_PERCENT:-0.5}
+
+  # Order timeout (seconds before canceling)
+  order_timeout_seconds: ${RISK_ORDER_TIMEOUT_SECONDS:-60}
+
+  # Require order confirmation for large orders
+  require_confirmation_above_usd: ${RISK_REQUIRE_CONFIRMATION_USD:-50000}
+
+  # Enable pre-trade risk validation
+  enable_pre_trade_validation: ${RISK_ENABLE_PRE_TRADE_VALIDATION:-true}
+
+# Market Condition-Based Risk
+market_conditions:
+  # Reduce position size in high volatility
+  reduce_on_high_volatility: ${RISK_REDUCE_ON_HIGH_VOL:-true}
+
+  # VIX threshold for high volatility
+  volatility_vix_threshold: ${RISK_VOLATILITY_VIX_THRESHOLD:-30.0}
+
+  # Position size multiplier in high volatility (0.5 = 50% smaller)
+  volatility_position_multiplier: ${RISK_VOLATILITY_POSITION_MULT:-0.5}
+
+  # Disable new trades during market stress
+  disable_new_trades_on_stress: ${RISK_DISABLE_NEW_TRADES_STRESS:-true}
+
+  # Market stress indicator threshold
+  stress_indicator_threshold: ${RISK_STRESS_INDICATOR_THRESHOLD:-0.75}
+
+  # Gap up/down percentage before risk adjustment
+  gap_threshold_percent: ${RISK_GAP_THRESHOLD_PERCENT:-2.0}
+
+# Concentration Risk Management
+concentration_limits:
+  # Maximum percentage in single ticker
+  max_single_ticker_percent: ${RISK_MAX_TICKER_PERCENT:-10.0}
+
+  # Maximum percentage in top 5 holdings
+  max_top_5_percent: ${RISK_MAX_TOP_5_PERCENT:-40.0}
+
+  # Maximum percentage in single sector
+  max_single_sector_percent: ${RISK_MAX_SECTOR_PERCENT:-20.0}
+
+  # Maximum percentage in high-risk assets (penny stocks, options)
+  max_high_risk_percent: ${RISK_MAX_HIGH_RISK_PERCENT:-5.0}
+
+  # Rebalance if concentration exceeds threshold
+  rebalance_enabled: ${RISK_REBALANCE_ENABLED:-true}
+  rebalance_threshold_percent: ${RISK_REBALANCE_THRESHOLD_PERCENT:-15.0}
+
+# Liquidity Risk Controls
+liquidity:
+  # Minimum trading volume (share count) to consider
+  min_daily_volume_shares: ${RISK_MIN_DAILY_VOLUME_SHARES:-100000}
+
+  # Minimum bid-ask spread (percentage) below which trading is restricted
+  max_acceptable_spread_percent: ${RISK_MAX_SPREAD_PERCENT:-0.5}
+
+  # Liquidity check enabled
+  enable_liquidity_check: ${RISK_ENABLE_LIQUIDITY_CHECK:-true}
+
+  # Skip low-liquidity assets
+  skip_low_liquidity: ${RISK_SKIP_LOW_LIQUIDITY:-true}
+
+  # Minimum market cap (in millions USD) for trading
+  min_market_cap_millions: ${RISK_MIN_MARKET_CAP_MILLIONS:-100}
+
+# Counterparty Risk
+counterparty:
+  # Maximum exposure per broker
+  max_per_broker_percent: ${RISK_MAX_PER_BROKER_PERCENT:-50.0}
+
+  # Maximum cash settlement exposure
+  max_settlement_exposure_usd: ${RISK_MAX_SETTLEMENT_EXPOSURE_USD:-500000}
+
+  # Require broker credit check
+  require_broker_check: ${RISK_REQUIRE_BROKER_CHECK:-true}
+
+  # Broker minimum credit rating required
+  min_broker_rating: ${RISK_MIN_BROKER_RATING:-A}
+
+# Monitoring and Alerts
+monitoring:
+  # Risk metrics update frequency (seconds)
+  update_frequency_seconds: ${RISK_UPDATE_FREQ_SECONDS:-30}
+
+  # Enable real-time risk dashboard
+  enable_dashboard: ${RISK_ENABLE_DASHBOARD:-true}
+
+  # Alert threshold: portfolio risk percent
+  alert_portfolio_risk_percent: ${RISK_ALERT_PORTFOLIO_PERCENT:-1.5}
+
+  # Alert threshold: unrealized loss percent
+  alert_unrealized_loss_percent: ${RISK_ALERT_UNREALIZED_LOSS_PERCENT:-3.0}
+
+  # Risk event logging enabled
+  enable_risk_logging: ${RISK_ENABLE_LOGGING:-true}
+
+  # Log file path for risk events
+  log_path: ${RISK_LOG_PATH:-/var/log/quantum_trader/risk_events.log}
+
+  # Webhook for risk alerts
+  alert_webhook_url: ${RISK_ALERT_WEBHOOK_URL}
+
+# Compliance and Regulatory
+compliance:
+  # Pattern Day Trading (PDT) rule enforcing (US markets)
+  enforce_pdt_rule: ${RISK_ENFORCE_PDT_RULE:-true}
+
+  # Minimum account balance for margin trading (USD)
+  min_margin_account_balance: ${RISK_MIN_MARGIN_BALANCE:-2000}
+
+  # Enable short-sell restrictions (Reg SHO)
+  enforce_reg_sho: ${RISK_ENFORCE_REG_SHO:-true}
+
+  # Uptick rule enforcement
+  enforce_uptick_rule: ${RISK_ENFORCE_UPTICK_RULE:-true}
+
+  # Maximum days to hold without review
+  max_hold_days: ${RISK_MAX_HOLD_DAYS:-30}
+
+# Risk Model Parameters
+risk_model:
+  # Value at Risk (VaR) confidence level (0.95 = 95% confidence)
+  var_confidence_level: ${RISK_VAR_CONFIDENCE:-0.95}
+
+  # VaR look-back period (days)
+  var_lookback_days: ${RISK_VAR_LOOKBACK_DAYS:-252}
+
+  # Expected Shortfall (CVaR) enabled
+  cvar_enabled: ${RISK_CVAR_ENABLED:-true}
+
+  # Sharpe ratio minimum threshold
+  min_sharpe_ratio: ${RISK_MIN_SHARPE_RATIO:-0.5}
+
+  # Sortino ratio minimum threshold
+  min_sortino_ratio: ${RISK_MIN_SORTINO_RATIO:-0.75}
+
+  # Maximum drawdown tolerance (percentage)
+  max_drawdown_tolerance: ${RISK_MAX_DRAWDOWN_TOLERANCE:-10.0}
+
+# Stress Testing and Backtesting
+stress_testing:
+  # Enable periodic stress tests
+  enabled: ${RISK_STRESS_TEST_ENABLED:-true}
+
+  # Stress test frequency (days)
+  frequency_days: ${RISK_STRESS_TEST_FREQUENCY:-7}
+
+  # Historical scenarios to test (1987 crash, 2008 crisis, COVID, etc.)
+  scenarios: ${RISK_STRESS_SCENARIOS:-"1987_crash,2008_crisis,2020_covid,2022_rate_hike"}
+
+  # Maximum acceptable loss in stress scenario (percentage)
+  max_acceptable_stress_loss: ${RISK_MAX_STRESS_LOSS_PERCENT:-20.0}

@@ -1,0 +1,170 @@
+# Production Environment Configuration
+# Quantum Trader AI - Production Deployment
+# All sensitive values are injected via environment variables
+
+environment: production
+
+# Database Configuration
+database:
+  # Primary database connection
+  primary:
+    host: ${DB_PRIMARY_HOST:-db-primary.production.internal}
+    port: ${DB_PRIMARY_PORT:-5432}
+    name: ${DB_PRIMARY_NAME:-quantum_trader}
+    username: ${DB_PRIMARY_USER:-trader_bot}
+    password: ${DB_PRIMARY_PASSWORD}
+    ssl_mode: ${DB_PRIMARY_SSL_MODE:-require}
+    connection_timeout: ${DB_PRIMARY_CONN_TIMEOUT:-30}
+    pool_size: ${DB_PRIMARY_POOL_SIZE:-20}
+    max_overflow: ${DB_PRIMARY_MAX_OVERFLOW:-10}
+
+  # Read replica for analytics
+  replica:
+    host: ${DB_REPLICA_HOST:-db-replica.production.internal}
+    port: ${DB_REPLICA_PORT:-5432}
+    name: ${DB_REPLICA_NAME:-quantum_trader}
+    username: ${DB_REPLICA_USER:-trader_reader}
+    password: ${DB_REPLICA_PASSWORD}
+    ssl_mode: ${DB_REPLICA_SSL_MODE:-require}
+    connection_timeout: ${DB_REPLICA_CONN_TIMEOUT:-30}
+    pool_size: ${DB_REPLICA_POOL_SIZE:-10}
+    readonly: true
+
+# Message Queue Configuration
+message_queue:
+  broker: ${MQ_BROKER:-amqp://mq-broker.production.internal}
+  exchange: ${MQ_EXCHANGE:-trader_exchange}
+  queue_prefix: ${MQ_QUEUE_PREFIX:-prod}
+  max_retries: ${MQ_MAX_RETRIES:-3}
+  retry_delay: ${MQ_RETRY_DELAY:-5}
+  prefetch_count: ${MQ_PREFETCH_COUNT:-10}
+
+# API Configuration
+api:
+  host: ${API_HOST:-0.0.0.0}
+  port: ${API_PORT:-8000}
+  workers: ${API_WORKERS:-8}
+  timeout: ${API_TIMEOUT:-30}
+  enable_cors: ${API_ENABLE_CORS:-false}
+  max_request_size: ${API_MAX_REQUEST_SIZE:-10485760}  # 10MB
+  rate_limit_enabled: ${API_RATE_LIMIT_ENABLED:-true}
+  rate_limit_requests: ${API_RATE_LIMIT_REQUESTS:-1000}
+  rate_limit_window: ${API_RATE_LIMIT_WINDOW:-3600}
+
+# Authentication & Security
+security:
+  # JWT token configuration
+  jwt_secret: ${JWT_SECRET}
+  jwt_algorithm: ${JWT_ALGORITHM:-HS256}
+  jwt_expiry_hours: ${JWT_EXPIRY_HOURS:-24}
+
+  # API key authentication
+  enable_api_keys: ${SECURITY_ENABLE_API_KEYS:-true}
+  api_key_header: ${SECURITY_API_KEY_HEADER:-X-API-Key}
+
+  # TLS/SSL
+  tls_enabled: ${SECURITY_TLS_ENABLED:-true}
+  cert_path: ${SECURITY_CERT_PATH:-/etc/certs/server.crt}
+  key_path: ${SECURITY_KEY_PATH:-/etc/certs/server.key}
+
+  # CORS origins
+  allowed_origins: ${SECURITY_ALLOWED_ORIGINS:-https://dashboard.production.com}
+
+# Trading Engine Configuration
+trading:
+  # Paper trading vs live trading
+  paper_trading: ${TRADING_PAPER_MODE:-false}
+
+  # Broker connections
+  brokers:
+    interactive_brokers:
+      account_id: ${IB_ACCOUNT_ID}
+      gateway_host: ${IB_GATEWAY_HOST:-localhost}
+      gateway_port: ${IB_GATEWAY_PORT:-4002}
+      enabled: ${IB_ENABLED:-true}
+
+    alpaca:
+      api_key: ${ALPACA_API_KEY}
+      secret_key: ${ALPACA_SECRET_KEY}
+      base_url: ${ALPACA_BASE_URL:-https://api.alpaca.markets}
+      enabled: ${ALPACA_ENABLED:-false}
+
+  # Order execution
+  order_execution:
+    market_hours_only: ${TRADING_MARKET_HOURS_ONLY:-true}
+    pre_market_enabled: ${TRADING_PRE_MARKET:-false}
+    after_hours_enabled: ${TRADING_AFTER_HOURS:-false}
+    slippage_model: ${TRADING_SLIPPAGE_MODEL:-aggressive}
+    max_order_age_seconds: ${TRADING_MAX_ORDER_AGE:-300}
+
+# Monitoring & Logging
+monitoring:
+  # Prometheus metrics
+  prometheus_enabled: ${MONITORING_PROMETHEUS_ENABLED:-true}
+  prometheus_pushgateway: ${MONITORING_PROMETHEUS_PG:-http://pushgateway.production.internal:9091}
+  metrics_export_interval: ${MONITORING_METRICS_INTERVAL:-60}
+
+  # Logging configuration
+  log_level: ${LOG_LEVEL:-INFO}
+  log_format: ${LOG_FORMAT:-json}
+  log_output: ${LOG_OUTPUT:-stdout}
+  log_file_path: ${LOG_FILE_PATH:-/var/log/quantum_trader}
+  log_retention_days: ${LOG_RETENTION_DAYS:-90}
+  log_max_size_mb: ${LOG_MAX_SIZE_MB:-100}
+
+  # Distributed tracing
+  tracing_enabled: ${MONITORING_TRACING_ENABLED:-true}
+  jaeger_agent_host: ${JAEGER_AGENT_HOST:-jaeger.production.internal}
+  jaeger_agent_port: ${JAEGER_AGENT_PORT:-6831}
+
+# Cache Configuration
+cache:
+  backend: ${CACHE_BACKEND:-redis}
+  redis_host: ${REDIS_HOST:-redis.production.internal}
+  redis_port: ${REDIS_PORT:-6379}
+  redis_password: ${REDIS_PASSWORD}
+  redis_db: ${REDIS_DB:-0}
+  default_ttl: ${CACHE_DEFAULT_TTL:-3600}
+  max_connections: ${CACHE_MAX_CONNECTIONS:-50}
+
+# Email & Alerts
+notifications:
+  # SMTP configuration
+  smtp_host: ${SMTP_HOST:-smtp.production.internal}
+  smtp_port: ${SMTP_PORT:-587}
+  smtp_username: ${SMTP_USERNAME}
+  smtp_password: ${SMTP_PASSWORD}
+  smtp_from: ${SMTP_FROM:-alerts@quantum-trader.production}
+  smtp_use_tls: ${SMTP_USE_TLS:-true}
+
+  # Alert recipients
+  alert_recipients: ${ALERT_RECIPIENTS:-ops@quantum-trader.production,traders@quantum-trader.production}
+
+  # Slack integration
+  slack_enabled: ${SLACK_ENABLED:-true}
+  slack_webhook_url: ${SLACK_WEBHOOK_URL}
+  slack_channel: ${SLACK_CHANNEL:-#trading-alerts}
+
+# Performance Tuning
+performance:
+  max_concurrent_orders: ${PERF_MAX_CONCURRENT_ORDERS:-100}
+  order_processing_batch_size: ${PERF_ORDER_BATCH_SIZE:-50}
+  market_data_buffer_size: ${PERF_MARKET_DATA_BUFFER:-10000}
+  strategy_update_frequency_ms: ${PERF_STRATEGY_UPDATE_FREQ:-1000}
+  cache_warm_on_startup: ${PERF_CACHE_WARM:-true}
+
+# Disaster Recovery
+backup:
+  enabled: ${BACKUP_ENABLED:-true}
+  frequency_hours: ${BACKUP_FREQUENCY_HOURS:-6}
+  retention_days: ${BACKUP_RETENTION_DAYS:-30}
+  storage_path: ${BACKUP_STORAGE_PATH:-/backups/quantum_trader}
+  s3_enabled: ${BACKUP_S3_ENABLED:-true}
+  s3_bucket: ${BACKUP_S3_BUCKET:-quantum-trader-backups-prod}
+  s3_region: ${BACKUP_S3_REGION:-us-east-1}
+
+# Service Health
+health:
+  health_check_interval: ${HEALTH_CHECK_INTERVAL:-30}
+  unhealthy_threshold: ${HEALTH_UNHEALTHY_THRESHOLD:-3}
+  startup_timeout_seconds: ${HEALTH_STARTUP_TIMEOUT:-300}

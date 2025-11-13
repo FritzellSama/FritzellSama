@@ -1,0 +1,300 @@
+# Trading Strategies Configuration
+# Quantum Trader AI - Production Strategy Parameters
+# All strategy parameters are configurable via environment variables
+
+# Global Strategy Settings
+global:
+  # Enable/disable all strategies
+  enabled: ${STRATEGIES_ENABLED:-true}
+
+  # Strategy update frequency (milliseconds)
+  update_frequency_ms: ${STRATEGIES_UPDATE_FREQ:-1000}
+
+  # Backtest required before live deployment
+  require_backtest: ${STRATEGIES_REQUIRE_BACKTEST:-true}
+
+  # Minimum Sharpe ratio for strategy activation
+  min_sharpe_ratio: ${STRATEGIES_MIN_SHARPE:-0.5}
+
+  # Maximum number of active strategies
+  max_active_strategies: ${STRATEGIES_MAX_ACTIVE:-5}
+
+  # Strategy rebalancing frequency (hours)
+  rebalance_frequency_hours: ${STRATEGIES_REBALANCE_HOURS:-24}
+
+  # Enable strategy adaptation (ML-based parameter optimization)
+  enable_adaptation: ${STRATEGIES_ENABLE_ADAPTATION:-true}
+
+  # Adaptation update interval (days)
+  adaptation_interval_days: ${STRATEGIES_ADAPTATION_DAYS:-7}
+
+# Mean Reversion Strategy
+mean_reversion:
+  enabled: ${STRATEGY_MR_ENABLED:-true}
+  allocation_percent: ${STRATEGY_MR_ALLOCATION:-15.0}
+
+  # Price deviation threshold (standard deviations)
+  deviation_threshold: ${STRATEGY_MR_DEVIATION:-2.0}
+
+  # Lookback period for mean calculation (days)
+  lookback_days: ${STRATEGY_MR_LOOKBACK:-20}
+
+  # Entry conditions
+  entry:
+    min_price_above_mean: ${STRATEGY_MR_ENTRY_MIN:-1.5}  # standard deviations
+    max_price_above_mean: ${STRATEGY_MR_ENTRY_MAX:-3.0}
+
+  # Exit conditions
+  exit:
+    target_price_deviation: ${STRATEGY_MR_EXIT_TARGET:-0.5}
+    max_hold_hours: ${STRATEGY_MR_MAX_HOLD:-12}
+
+  # Risk parameters
+  position_size_percent: ${STRATEGY_MR_POSITION_SIZE:-1.0}
+  stop_loss_percent: ${STRATEGY_MR_STOP_LOSS:-2.0}
+  take_profit_percent: ${STRATEGY_MR_TAKE_PROFIT:-3.0}
+
+  # Asset filters
+  min_market_cap_millions: ${STRATEGY_MR_MIN_CAP:-500}
+  min_daily_volume_millions: ${STRATEGY_MR_MIN_VOLUME:-10}
+  allowed_sectors: ${STRATEGY_MR_SECTORS:-tech,finance,energy}
+
+# Momentum Strategy
+momentum:
+  enabled: ${STRATEGY_MOM_ENABLED:-true}
+  allocation_percent: ${STRATEGY_MOM_ALLOCATION:-20.0}
+
+  # Momentum calculation period (days)
+  momentum_period: ${STRATEGY_MOM_PERIOD:-10}
+
+  # Momentum threshold
+  momentum_threshold: ${STRATEGY_MOM_THRESHOLD:-0.05}
+
+  # Entry conditions
+  entry:
+    min_momentum: ${STRATEGY_MOM_ENTRY_MIN:-0.05}
+    rsi_above: ${STRATEGY_MOM_ENTRY_RSI:-50}
+    price_above_sma: ${STRATEGY_MOM_ENTRY_SMA:-true}
+    sma_period: ${STRATEGY_MOM_SMA_PERIOD:-50}
+
+  # Exit conditions
+  exit:
+    momentum_reversal_threshold: ${STRATEGY_MOM_EXIT_REVERSAL:-0.02}
+    rsi_below: ${STRATEGY_MOM_EXIT_RSI:-40}
+    max_hold_days: ${STRATEGY_MOM_MAX_HOLD:-15}
+
+  # Risk parameters
+  position_size_percent: ${STRATEGY_MOM_POSITION_SIZE:-1.5}
+  stop_loss_percent: ${STRATEGY_MOM_STOP_LOSS:-3.0}
+  take_profit_percent: ${STRATEGY_MOM_TAKE_PROFIT:-5.0}
+
+  # Asset filters
+  min_market_cap_millions: ${STRATEGY_MOM_MIN_CAP:-300}
+  min_daily_volume_millions: ${STRATEGY_MOM_MIN_VOLUME:-5}
+
+# Statistical Arbitrage Strategy
+stat_arb:
+  enabled: ${STRATEGY_STATARB_ENABLED:-true}
+  allocation_percent: ${STRATEGY_STATARB_ALLOCATION:-25.0}
+
+  # Correlation threshold between assets
+  correlation_threshold: ${STRATEGY_STATARB_CORR:-0.7}
+
+  # Cointegration test p-value threshold
+  cointegration_pvalue: ${STRATEGY_STATARB_COINT:-0.05}
+
+  # Z-score thresholds
+  entry:
+    zscore_threshold: ${STRATEGY_STATARB_ENTRY_ZSCORE:-2.0}
+    min_historical_pairs: ${STRATEGY_STATARB_MIN_PAIRS:-3}
+
+  exit:
+    zscore_exit: ${STRATEGY_STATARB_EXIT_ZSCORE:-0.5}
+    max_hold_hours: ${STRATEGY_STATARB_MAX_HOLD:-8}
+
+  # Risk parameters
+  position_size_percent: ${STRATEGY_STATARB_POSITION_SIZE:-2.0}
+  hedge_ratio_rebalance_hours: ${STRATEGY_STATARB_REBALANCE:-4}
+
+  # Data requirements
+  lookback_days: ${STRATEGY_STATARB_LOOKBACK:-252}
+  min_daily_volume_millions: ${STRATEGY_STATARB_MIN_VOLUME:-20}
+
+# Machine Learning Strategy
+ml_strategy:
+  enabled: ${STRATEGY_ML_ENABLED:-true}
+  allocation_percent: ${STRATEGY_ML_ALLOCATION:-25.0}
+
+  # Model type (random_forest, gradient_boosting, neural_network, ensemble)
+  model_type: ${STRATEGY_ML_MODEL:-ensemble}
+
+  # Model update frequency
+  model_update_hours: ${STRATEGY_ML_UPDATE_HOURS:-24}
+
+  # Model training parameters
+  training:
+    lookback_days: ${STRATEGY_ML_TRAIN_DAYS:-252}
+    test_size_percent: ${STRATEGY_ML_TEST_PERCENT:-20}
+    validation_size_percent: ${STRATEGY_ML_VALIDATION_PERCENT:-10}
+
+  # Feature engineering
+  features:
+    use_technical: ${STRATEGY_ML_USE_TECHNICAL:-true}
+    use_sentiment: ${STRATEGY_ML_USE_SENTIMENT:-true}
+    use_fundamental: ${STRATEGY_ML_USE_FUNDAMENTAL:-false}
+    window_size_days: ${STRATEGY_ML_WINDOW:-5}
+
+  # Entry conditions
+  entry:
+    prediction_confidence: ${STRATEGY_ML_ENTRY_CONFIDENCE:-0.65}
+    min_probability: ${STRATEGY_ML_ENTRY_PROB:-0.60}
+
+  # Exit conditions
+  exit:
+    confidence_threshold: ${STRATEGY_ML_EXIT_CONF:-0.40}
+    max_hold_days: ${STRATEGY_ML_MAX_HOLD:-20}
+
+  # Risk parameters
+  position_size_percent: ${STRATEGY_ML_POSITION_SIZE:-2.5}
+  stop_loss_percent: ${STRATEGY_ML_STOP_LOSS:-3.5}
+  take_profit_percent: ${STRATEGY_ML_TAKE_PROFIT:-6.0}
+
+  # Model hyperparameters
+  hyperparameters:
+    random_forest_estimators: ${STRATEGY_ML_RF_ESTIMATORS:-100}
+    random_forest_max_depth: ${STRATEGY_ML_RF_DEPTH:-10}
+    learning_rate: ${STRATEGY_ML_LEARNING_RATE:-0.01}
+    regularization_lambda: ${STRATEGY_ML_LAMBDA:-0.001}
+
+# Mean Variance Optimization Strategy
+mvo:
+  enabled: ${STRATEGY_MVO_ENABLED:-true}
+  allocation_percent: ${STRATEGY_MVO_ALLOCATION:-15.0}
+
+  # Optimization frequency
+  optimization_days: ${STRATEGY_MVO_OPT_DAYS:-5}
+
+  # Universe size
+  universe_size: ${STRATEGY_MVO_UNIVERSE:-50}
+
+  # Constraints
+  constraints:
+    min_allocation_percent: ${STRATEGY_MVO_MIN_ALLOC:-0.5}
+    max_allocation_percent: ${STRATEGY_MVO_MAX_ALLOC:-10.0}
+    max_sector_allocation: ${STRATEGY_MVO_MAX_SECTOR:-20.0}
+
+  # Risk parameters
+  target_volatility_percent: ${STRATEGY_MVO_TARGET_VOL:-8.0}
+  max_tracking_error: ${STRATEGY_MVO_TRACKING_ERROR:-2.0}
+
+  # Expected return estimation
+  return_lookback_days: ${STRATEGY_MVO_RETURN_DAYS:-252}
+  shrinkage_intensity: ${STRATEGY_MVO_SHRINKAGE:-0.5}
+
+# Volatility-Based Strategy
+volatility:
+  enabled: ${STRATEGY_VOL_ENABLED:-true}
+  allocation_percent: ${STRATEGY_VOL_ALLOCATION:-15.0}
+
+  # VIX-based trading
+  vix_threshold_long: ${STRATEGY_VOL_VIX_LONG:-20.0}
+  vix_threshold_short: ${STRATEGY_VOL_VIX_SHORT:-30.0}
+
+  # ATR-based position sizing
+  atr_period: ${STRATEGY_VOL_ATR_PERIOD:-14}
+  position_size_atr_multiplier: ${STRATEGY_VOL_ATR_MULT:-1.0}
+
+  # Entry conditions
+  entry:
+    volatility_percentile: ${STRATEGY_VOL_ENTRY_PERCENTILE:-70}
+    lookback_days: ${STRATEGY_VOL_ENTRY_LOOKBACK:-60}
+
+  # Exit conditions
+  exit:
+    volatility_drop_threshold: ${STRATEGY_VOL_EXIT_DROP:-0.15}
+    max_hold_hours: ${STRATEGY_VOL_MAX_HOLD:-6}
+
+# Sector Rotation Strategy
+sector_rotation:
+  enabled: ${STRATEGY_SECTOR_ENABLED:-false}
+  allocation_percent: ${STRATEGY_SECTOR_ALLOCATION:-10.0}
+
+  # Sector momentum calculation period
+  momentum_period: ${STRATEGY_SECTOR_MOMENTUM:-20}
+
+  # Rebalancing frequency
+  rebalance_days: ${STRATEGY_SECTOR_REBALANCE:-30}
+
+  # Number of sectors to hold
+  num_sectors: ${STRATEGY_SECTOR_NUM:-3}
+
+# Trend Following Strategy
+trend_following:
+  enabled: ${STRATEGY_TREND_ENABLED:-true}
+  allocation_percent: ${STRATEGY_TREND_ALLOCATION:-15.0}
+
+  # Moving average periods
+  fast_ma_period: ${STRATEGY_TREND_FAST_MA:-20}
+  slow_ma_period: ${STRATEGY_TREND_SLOW_MA:-50}
+
+  # Entry conditions
+  entry:
+    price_above_fast_ma: ${STRATEGY_TREND_ENTRY_FAST:-true}
+    fast_above_slow_ma: ${STRATEGY_TREND_ENTRY_SLOW:-true}
+
+  # Exit conditions
+  exit:
+    stop_loss_percent: ${STRATEGY_TREND_STOP_LOSS:-2.5}
+    max_hold_days: ${STRATEGY_TREND_MAX_HOLD:-30}
+
+  # Risk parameters
+  position_size_percent: ${STRATEGY_TREND_POSITION:-1.5}
+
+# Strategy Rotation and Ensemble
+ensemble:
+  # Strategy voting mechanism
+  voting_enabled: ${STRATEGY_ENSEMBLE_VOTING:-true}
+  required_votes: ${STRATEGY_ENSEMBLE_VOTES:-2}
+
+  # Diversification constraint
+  min_strategy_participation: ${STRATEGY_ENSEMBLE_MIN_PART:-0.05}
+
+  # Correlation reduction
+  max_inter_strategy_correlation: ${STRATEGY_ENSEMBLE_CORR:-0.6}
+
+# Backtesting and Validation
+backtesting:
+  # Backtest period (days)
+  period_days: ${BACKTESTING_PERIOD:-252}
+
+  # Required metrics
+  min_returns: ${BACKTESTING_MIN_RETURNS:-0.05}
+  max_drawdown: ${BACKTESTING_MAX_DRAWDOWN:-0.15}
+  min_win_rate: ${BACKTESTING_MIN_WIN_RATE:-0.45}
+
+  # Out-of-sample testing
+  oos_enabled: ${BACKTESTING_OOS_ENABLED:-true}
+  oos_period_percent: ${BACKTESTING_OOS_PERCENT:-20}
+
+# Paper Trading Validation
+paper_trading:
+  # Paper trade before going live
+  required_trades: ${PAPER_TRADING_REQUIRED:-100}
+  required_days: ${PAPER_TRADING_REQUIRED_DAYS:-14}
+
+  # Performance threshold
+  min_paper_returns: ${PAPER_TRADING_MIN_RETURNS:-0.01}
+
+# Strategy Monitoring
+monitoring:
+  # Metrics update frequency
+  update_frequency_seconds: ${STRATEGY_MONITOR_FREQ:-60}
+
+  # Alert thresholds
+  sharpe_ratio_alert: ${STRATEGY_ALERT_SHARPE:-0.3}
+  max_drawdown_alert: ${STRATEGY_ALERT_DRAWDOWN:-0.20}
+  win_rate_alert: ${STRATEGY_ALERT_WIN_RATE:-0.40}
+
+  # Strategy pause conditions
+  pause_on_consecutive_losses: ${STRATEGY_PAUSE_LOSSES:-5}
+  pause_duration_hours: ${STRATEGY_PAUSE_HOURS:-1}
