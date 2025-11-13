@@ -1,0 +1,48 @@
+# Risk Management Configuration
+# CRITICAL: All risk limits and thresholds
+
+position_limits:
+  max_position_size_usd: "10000000"  # $10M per position
+  max_portfolio_value_usd: "1000000000"  # $1B total
+  max_concentration_pct: "0.1"  # 10% per asset max
+  max_leverage: "3.0"  # 3x maximum leverage
+
+loss_limits:
+  max_daily_loss_usd: "20000000"  # $20M (2% of portfolio)
+  max_drawdown_pct: "0.08"  # 8% maximum drawdown
+  var_limit_usd: "50000000"  # $50M VaR limit
+  cvar_limit_usd: "75000000"  # $75M CVaR limit
+
+risk_metrics:
+  target_sharpe_ratio: "2.5"
+  max_correlation: "0.7"  # Maximum correlation between positions
+  var_confidence: "0.99"  # 99% confidence level
+  var_horizon_days: 1
+  stress_test_scenarios: 10
+
+circuit_breakers:
+  enabled: true
+  daily_loss_trigger_usd: "15000000"  # Trigger at $15M loss
+  drawdown_trigger_pct: "0.06"  # Trigger at 6% drawdown
+  volatility_multiplier: "3.0"  # Halt if vol > 3x normal
+  correlation_spike_threshold: "0.85"  # Alert if correlation > 85%
+  cascade_protection_enabled: true
+
+position_sizing:
+  default_method: "kelly_criterion"  # kelly_criterion, fixed_fractional, volatility_based, risk_parity
+  kelly_fraction: "0.25"  # Quarter Kelly for safety
+  fixed_fractional_pct: "0.02"  # 2% of capital per trade
+  min_position_size_usd: "1000"  # Minimum $1000 per position
+  max_position_size_pct: "0.05"  # 5% of portfolio max
+
+monitoring:
+  check_interval_seconds: 1  # Real-time monitoring every second
+  alert_cooldown_seconds: 300  # 5 minutes between repeat alerts
+  metrics_retention_days: 365
+
+portfolio:
+  rebalance_threshold_pct: "0.05"  # Rebalance if drift > 5%
+  rebalance_frequency_hours: 24  # Check daily
+  hedge_threshold_pct: "0.10"  # Hedge if exposure > 10%
+  diversification_min_assets: 10
+  correlation_update_interval_hours: 1

@@ -1,0 +1,99 @@
+# Trading Engine Configuration
+# CRITICAL: All execution and engine settings
+
+execution:
+  max_latency_ms: 10  # Must execute within 10ms
+  timeout_seconds: 30
+  retry_attempts: 3
+  retry_backoff_ms: [100, 500, 2000]  # Exponential backoff
+  slippage_tolerance_pct: "0.001"  # 0.1% max slippage
+  partial_fill_enabled: true
+  min_fill_pct: "0.5"  # Accept if >= 50% filled
+
+order_routing:
+  enabled: true
+  strategy: "smart"  # smart, price, latency, liquidity
+  exchanges:
+    - "BINANCE"
+    - "BYBIT"
+    - "OKX"
+    - "KUCOIN"
+  price_improvement_min_bps: 1  # Require 1 bps improvement to route
+  latency_threshold_ms: 100
+
+order_slicing:
+  enabled: true
+  max_slice_size_usd: "100000"  # $100K per slice
+  min_slices: 5
+  max_slices: 100
+  time_interval_seconds: 60  # TWAP: spread over 60s
+
+execution_algorithms:
+  default: "TWAP"  # TWAP, VWAP, ICEBERG, POV
+  twap:
+    interval_seconds: 60
+    randomize_timing: true
+    timing_variance_pct: "0.1"  # ±10% variance
+  vwap:
+    lookback_minutes: 15
+    volume_participation_pct: "0.1"  # 10% of market volume
+  iceberg:
+    visible_pct: "0.1"  # Show 10% of order
+    refresh_interval_seconds: 30
+  pov:  # Percentage of Volume
+    target_participation_pct: "0.05"  # 5% of volume
+    max_participation_pct: "0.15"  # Don't exceed 15%
+
+matching_engine:
+  order_book_depth: 100
+  tick_size_usd: "0.01"
+  price_precision: 8
+  quantity_precision: 8
+  matching_algorithm: "price_time"  # price_time, pro_rata
+
+reconciliation:
+  enabled: true
+  interval_seconds: 60  # Reconcile every minute
+  mismatch_tolerance_usd: "0.01"  # $0.01 tolerance
+  auto_correct_enabled: false  # Manual review required
+  alert_on_mismatch: true
+
+settlement:
+  t_plus: 0  # T+0 settlement for crypto
+  netting_enabled: true
+  settlement_currency: "USDT"
+  minimum_settlement_usd: "10"  # Don't settle < $10
+
+state_machine:
+  initial_state: "INITIALIZED"
+  allowed_transitions:
+    INITIALIZED: ["STARTING"]
+    STARTING: ["RUNNING", "FAILED"]
+    RUNNING: ["PAUSED", "STOPPING", "EMERGENCY_STOP"]
+    PAUSED: ["RUNNING", "STOPPING"]
+    STOPPING: ["STOPPED"]
+    EMERGENCY_STOP: ["STOPPED"]
+    STOPPED: ["STARTING"]
+  transition_timeout_seconds: 30
+
+event_bus:
+  backend: "redis"  # redis, rabbitmq, kafka
+  redis_url: "${REDIS_URL}"
+  max_queue_size: 10000
+  worker_threads: 4
+  event_retention_seconds: 3600  # 1 hour
+  dead_letter_queue_enabled: true
+
+trading_engine:
+  max_concurrent_orders: 100
+  order_queue_size: 1000
+  position_update_interval_ms: 100  # Update positions every 100ms
+  pnl_calculation_interval_ms: 1000  # Calculate P&L every second
+  health_check_interval_seconds: 10
+
+monitoring:
+  metrics_port: 9090  # Prometheus metrics
+  health_check_port: 8080
+  profiling_enabled: false  # Disable in production
+  tracing_enabled: true
+  trace_sample_rate: "0.1"  # Sample 10% of traces
