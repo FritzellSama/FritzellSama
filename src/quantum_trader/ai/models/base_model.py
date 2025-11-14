@@ -1,14 +1,10 @@
-"""Abstract base class for all ML models.
+"""Base abstract class for all machine learning models.
 
-This module provides the base interface that all machine learning models
-in the Quantum Trader AI system must implement.
+This module provides the foundation for implementing ML models in the trading system.
 """
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
-from typing import Any, Dict
-
+from typing import Dict, Any
 import numpy as np
 from structlog import get_logger
 
@@ -16,33 +12,39 @@ logger = get_logger(__name__)
 
 
 class BaseMLModel(ABC):
-    """Abstract base for all ML models.
+    """Abstract base class for all ML models.
 
-    This class defines the interface that all machine learning models
-    must implement to be compatible with the Quantum Trader AI system.
+    All machine learning models in the system must inherit from this class
+    and implement its abstract methods.
 
     Attributes:
-        config: Configuration dictionary for the model
+        config: Model configuration dictionary
+
+    Example:
+        >>> class MyModel(BaseMLModel):
+        ...     def train(self, features, labels):
+        ...         # Training implementation
+        ...         pass
+        ...     def predict(self, features):
+        ...         # Prediction implementation
+        ...         return np.array([])
+        ...     def evaluate(self, features, labels):
+        ...         return {"accuracy": 0.95}
+        ...     def save(self, path):
+        ...         pass
+        ...     def load(self, path):
+        ...         pass
     """
 
     def __init__(self, config: Dict[str, Any]) -> None:
-        """Initialize the ML model.
+        """Initialize the model with configuration.
 
         Args:
-            config: Configuration dictionary containing model parameters
+            config: Model configuration dictionary containing hyperparameters
+                   and other settings
         """
         self.config = config
-        self._validate_config()
-        logger.info("base_ml_model_initialized", model_class=self.__class__.__name__)
-
-    def _validate_config(self) -> None:
-        """Validate the model configuration.
-
-        Raises:
-            ValueError: If configuration is invalid
-        """
-        if not isinstance(self.config, dict):
-            raise ValueError(f"Config must be a dictionary, got {type(self.config)}")
+        logger.info("model_initialized", model_type=self.__class__.__name__)
 
     @abstractmethod
     def train(self, features: np.ndarray, labels: np.ndarray) -> None:
@@ -59,10 +61,10 @@ class BaseMLModel(ABC):
 
     @abstractmethod
     def predict(self, features: np.ndarray) -> np.ndarray:
-        """Generate predictions for given features.
+        """Generate predictions for the given features.
 
         Args:
-            features: Features to predict on as numpy array
+            features: Input features as numpy array
 
         Returns:
             Predictions as numpy array
@@ -74,14 +76,14 @@ class BaseMLModel(ABC):
 
     @abstractmethod
     def evaluate(self, features: np.ndarray, labels: np.ndarray) -> Dict[str, float]:
-        """Evaluate model performance on given data.
+        """Evaluate model performance on test data.
 
         Args:
-            features: Evaluation features as numpy array
-            labels: True labels as numpy array
+            features: Test features as numpy array
+            labels: Test labels as numpy array
 
         Returns:
-            Dictionary of evaluation metrics
+            Dictionary containing evaluation metrics (e.g., accuracy, loss)
 
         Raises:
             NotImplementedError: Must be implemented by subclass
@@ -93,7 +95,7 @@ class BaseMLModel(ABC):
         """Save the model to disk.
 
         Args:
-            path: File path to save the model
+            path: File path where model should be saved
 
         Raises:
             NotImplementedError: Must be implemented by subclass
@@ -105,12 +107,9 @@ class BaseMLModel(ABC):
         """Load the model from disk.
 
         Args:
-            path: File path to load the model from
+            path: File path from where model should be loaded
 
         Raises:
             NotImplementedError: Must be implemented by subclass
         """
         pass
-
-
-__all__ = ["BaseMLModel"]
