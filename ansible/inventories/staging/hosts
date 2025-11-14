@@ -1,0 +1,102 @@
+# Quantum Trader AI - Staging Environment Inventory
+# Ansible hosts configuration for staging deployment
+# Environment: Staging
+# Purpose: Pre-production testing with production-like data and configuration
+# SLA: 99.9% uptime, production parity testing
+
+[all:vars]
+# Environment configuration
+environment=staging
+ansible_user={{ lookup('env', 'STAGING_SSH_USER') }}
+ansible_port={{ lookup('env', 'STAGING_SSH_PORT') | default('22', true) }}
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_private_key_file={{ lookup('env', 'STAGING_SSH_KEY_PATH') }}
+
+# Application configuration
+app_name=quantum_trader_ai
+app_version={{ lookup('env', 'STAGING_APP_VERSION') | default('latest', true) }}
+app_port={{ lookup('env', 'STAGING_APP_PORT') }}
+app_workers={{ lookup('env', 'STAGING_APP_WORKERS') }}
+
+# High availability configuration
+enable_ha={{ lookup('env', 'STAGING_ENABLE_HA') | default('true', true) }}
+health_check_interval={{ lookup('env', 'STAGING_HEALTH_CHECK_INTERVAL') }}
+failover_timeout={{ lookup('env', 'STAGING_FAILOVER_TIMEOUT') }}
+
+# Database configuration
+db_host={{ lookup('env', 'STAGING_DB_HOST') }}
+db_port={{ lookup('env', 'STAGING_DB_PORT') }}
+db_name={{ lookup('env', 'STAGING_DB_NAME') }}
+db_pool_size={{ lookup('env', 'STAGING_DB_POOL_SIZE') }}
+
+# Redis configuration
+redis_host={{ lookup('env', 'STAGING_REDIS_HOST') }}
+redis_port={{ lookup('env', 'STAGING_REDIS_PORT') }}
+redis_password={{ lookup('env', 'STAGING_REDIS_PASSWORD') }}
+
+# Monitoring configuration
+prometheus_port={{ lookup('env', 'STAGING_PROMETHEUS_PORT') }}
+grafana_port={{ lookup('env', 'STAGING_GRAFANA_PORT') }}
+alertmanager_port={{ lookup('env', 'STAGING_ALERTMANAGER_PORT') }}
+
+# Security configuration
+enable_encryption={{ lookup('env', 'STAGING_ENABLE_ENCRYPTION') | default('true', true) }}
+enable_audit_logging={{ lookup('env', 'STAGING_ENABLE_AUDIT_LOGGING') | default('true', true) }}
+ssl_cert_path={{ lookup('env', 'STAGING_SSL_CERT_PATH') }}
+ssl_key_path={{ lookup('env', 'STAGING_SSL_KEY_PATH') }}
+
+# Resource limits
+memory_limit={{ lookup('env', 'STAGING_MEMORY_LIMIT') }}
+cpu_limit={{ lookup('env', 'STAGING_CPU_LIMIT') }}
+
+# Testing configuration
+enable_load_testing={{ lookup('env', 'STAGING_ENABLE_LOAD_TESTING') | default('true', true) }}
+enable_chaos_testing={{ lookup('env', 'STAGING_ENABLE_CHAOS_TESTING') | default('false', true) }}
+
+[trading_servers]
+# Staging trading server cluster
+staging-trader-01 ansible_host={{ lookup('env', 'STAGING_TRADER_01_HOST') }}
+staging-trader-02 ansible_host={{ lookup('env', 'STAGING_TRADER_02_HOST') }}
+
+[database_servers]
+# Staging database with replica
+staging-db-primary ansible_host={{ lookup('env', 'STAGING_DB_PRIMARY_HOST') }} role=primary
+staging-db-replica ansible_host={{ lookup('env', 'STAGING_DB_REPLICA_HOST') }} role=replica
+
+[cache_servers]
+# Staging Redis cluster
+staging-cache-01 ansible_host={{ lookup('env', 'STAGING_CACHE_01_HOST') }} redis_role=master
+staging-cache-02 ansible_host={{ lookup('env', 'STAGING_CACHE_02_HOST') }} redis_role=replica
+
+[monitoring_servers]
+# Staging monitoring stack
+staging-monitor-01 ansible_host={{ lookup('env', 'STAGING_MONITOR_01_HOST') }}
+
+[api_servers]
+# Staging API servers
+staging-api-01 ansible_host={{ lookup('env', 'STAGING_API_01_HOST') }}
+staging-api-02 ansible_host={{ lookup('env', 'STAGING_API_02_HOST') }}
+
+[ml_servers]
+# Staging ML model servers
+staging-ml-01 ansible_host={{ lookup('env', 'STAGING_ML_01_HOST') }}
+
+[load_balancers]
+# Staging load balancer
+staging-lb-01 ansible_host={{ lookup('env', 'STAGING_LB_01_HOST') }}
+
+# Group aggregations
+[staging:children]
+trading_servers
+database_servers
+cache_servers
+monitoring_servers
+api_servers
+ml_servers
+load_balancers
+
+[staging:vars]
+deployment_mode=staging
+log_level={{ lookup('env', 'STAGING_LOG_LEVEL') | default('DEBUG', true) }}
+enable_debug={{ lookup('env', 'STAGING_ENABLE_DEBUG') | default('true', true) }}
+enable_profiling={{ lookup('env', 'STAGING_ENABLE_PROFILING') | default('true', true) }}
