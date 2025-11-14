@@ -1,70 +1,74 @@
 """Core data models for Quantum Trader AI.
 
-This module contains the fundamental data structures used throughout the trading system.
+This module defines the fundamental data structures used throughout the trading system.
+All models use Decimal for monetary values and UTC timestamps for time-based data.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
-from typing import Any, Dict
-
-
-class SignalAction(Enum):
-    """Trading signal actions."""
-
-    BUY = "BUY"
-    SELL = "SELL"
-    HOLD = "HOLD"
-    CLOSE = "CLOSE"
+from typing import List, Tuple
 
 
 @dataclass
-class Signal:
-    """Trading signal from strategy.
+class OrderBook:
+    """Order book snapshot.
+
+    Represents a point-in-time view of the order book for a trading symbol,
+    containing bid and ask price levels with their sizes.
 
     Attributes:
-        symbol: Trading pair symbol (e.g., 'BTCUSDT')
-        action: Signal action (BUY, SELL, HOLD, CLOSE)
-        strength: Signal strength from 0.0 to 1.0
-        confidence: Signal confidence from 0.0 to 1.0
-        timestamp: UTC timestamp when signal was generated
-        strategy: Name of strategy that generated the signal
-        timeframe: Timeframe for the signal (e.g., '1m', '5m', '1h')
-        indicators: Dictionary of indicator values
-        metadata: Additional metadata
+        symbol: Trading pair symbol (e.g., "BTC/USDT")
+        bids: List of (price, size) tuples sorted by price descending
+        asks: List of (price, size) tuples sorted by price ascending
+        timestamp: UTC timestamp when the snapshot was captured
 
     Example:
         >>> from decimal import Decimal
         >>> from datetime import datetime, timezone
-        >>> signal = Signal(
-        ...     symbol="BTCUSDT",
-        ...     action=SignalAction.BUY,
-        ...     strength=Decimal("0.85"),
-        ...     confidence=Decimal("0.92"),
-        ...     timestamp=datetime.now(timezone.utc),
-        ...     strategy="momentum_strategy",
-        ...     timeframe="5m",
-        ...     indicators={"rsi": Decimal("35.5"), "macd": Decimal("12.3")},
-        ...     metadata={"market_regime": "trending"}
+        >>> orderbook = OrderBook(
+        ...     symbol="BTC/USDT",
+        ...     bids=[(Decimal("50000.00"), Decimal("1.5"))],
+        ...     asks=[(Decimal("50001.00"), Decimal("2.0"))],
+        ...     timestamp=datetime.now(timezone.utc)
         ... )
     """
-
     symbol: str
-    action: SignalAction
-    strength: Decimal
-    confidence: Decimal
+    bids: List[Tuple[Decimal, Decimal]]
+    asks: List[Tuple[Decimal, Decimal]]
     timestamp: datetime
-    strategy: str
-    timeframe: str
-    indicators: Dict[str, Decimal] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        """Validate signal data after initialization."""
-        if not Decimal("0") <= self.strength <= Decimal("1"):
-            raise ValueError(f"Strength must be between 0 and 1, got {self.strength}")
-        if not Decimal("0") <= self.confidence <= Decimal("1"):
-            raise ValueError(f"Confidence must be between 0 and 1, got {self.confidence}")
-        if self.timestamp.tzinfo is None:
-            raise ValueError("Timestamp must be timezone-aware (UTC)")
+
+@dataclass
+class Ticker:
+    """Real-time ticker data.
+
+    Represents current market data for a trading symbol including best bid/ask,
+    last traded price, and 24-hour volume.
+
+    Attributes:
+        symbol: Trading pair symbol (e.g., "BTC/USDT")
+        bid: Best bid price
+        ask: Best ask price
+        last: Last traded price
+        volume: 24-hour trading volume in base currency
+        timestamp: UTC timestamp when the ticker data was captured
+
+    Example:
+        >>> from decimal import Decimal
+        >>> from datetime import datetime, timezone
+        >>> ticker = Ticker(
+        ...     symbol="BTC/USDT",
+        ...     bid=Decimal("50000.00"),
+        ...     ask=Decimal("50001.00"),
+        ...     last=Decimal("50000.50"),
+        ...     volume=Decimal("1234.56"),
+        ...     timestamp=datetime.now(timezone.utc)
+        ... )
+    """
+    symbol: str
+    bid: Decimal
+    ask: Decimal
+    last: Decimal
+    volume: Decimal
+    timestamp: datetime
