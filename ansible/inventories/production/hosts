@@ -1,0 +1,120 @@
+# Quantum Trader AI - Production Environment Inventory
+# Ansible hosts configuration for production deployment
+# Environment: Production
+# Purpose: Live trading with billions in capital - CRITICAL INFRASTRUCTURE
+# SLA: 99.99% uptime, <10ms latency, 10K+ trades/day
+
+[all:vars]
+# Environment configuration
+environment=production
+ansible_user={{ lookup('env', 'PROD_SSH_USER') }}
+ansible_port={{ lookup('env', 'PROD_SSH_PORT') | default('22', true) }}
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_private_key_file={{ lookup('env', 'PROD_SSH_KEY_PATH') }}
+ansible_ssh_common_args='-o StrictHostKeyChecking=yes -o UserKnownHostsFile=/dev/null'
+
+# Application configuration
+app_name=quantum_trader_ai
+app_version={{ lookup('env', 'PROD_APP_VERSION') }}
+app_port={{ lookup('env', 'PROD_APP_PORT') }}
+app_workers={{ lookup('env', 'PROD_APP_WORKERS') }}
+
+# High availability configuration
+enable_ha={{ lookup('env', 'PROD_ENABLE_HA') | default('true', true) }}
+health_check_interval={{ lookup('env', 'PROD_HEALTH_CHECK_INTERVAL') }}
+failover_timeout={{ lookup('env', 'PROD_FAILOVER_TIMEOUT') }}
+
+# Database configuration - Primary cluster
+db_primary_host={{ lookup('env', 'PROD_DB_PRIMARY_HOST') }}
+db_primary_port={{ lookup('env', 'PROD_DB_PRIMARY_PORT') }}
+db_replica_hosts={{ lookup('env', 'PROD_DB_REPLICA_HOSTS') }}
+db_name={{ lookup('env', 'PROD_DB_NAME') }}
+db_pool_size={{ lookup('env', 'PROD_DB_POOL_SIZE') }}
+db_max_overflow={{ lookup('env', 'PROD_DB_MAX_OVERFLOW') }}
+
+# Redis configuration - Cluster mode
+redis_cluster_nodes={{ lookup('env', 'PROD_REDIS_CLUSTER_NODES') }}
+redis_password={{ lookup('env', 'PROD_REDIS_PASSWORD') }}
+redis_ssl_enabled={{ lookup('env', 'PROD_REDIS_SSL_ENABLED') | default('true', true) }}
+
+# Monitoring configuration
+prometheus_port={{ lookup('env', 'PROD_PROMETHEUS_PORT') }}
+grafana_port={{ lookup('env', 'PROD_GRAFANA_PORT') }}
+alertmanager_port={{ lookup('env', 'PROD_ALERTMANAGER_PORT') }}
+
+# Security configuration
+enable_encryption={{ lookup('env', 'PROD_ENABLE_ENCRYPTION') | default('true', true) }}
+enable_audit_logging={{ lookup('env', 'PROD_ENABLE_AUDIT_LOGGING') | default('true', true) }}
+ssl_cert_path={{ lookup('env', 'PROD_SSL_CERT_PATH') }}
+ssl_key_path={{ lookup('env', 'PROD_SSL_KEY_PATH') }}
+
+# Resource limits - Production scale
+memory_limit={{ lookup('env', 'PROD_MEMORY_LIMIT') }}
+cpu_limit={{ lookup('env', 'PROD_CPU_LIMIT') }}
+max_connections={{ lookup('env', 'PROD_MAX_CONNECTIONS') }}
+
+# Backup configuration
+backup_enabled={{ lookup('env', 'PROD_BACKUP_ENABLED') | default('true', true) }}
+backup_retention_days={{ lookup('env', 'PROD_BACKUP_RETENTION_DAYS') }}
+backup_schedule={{ lookup('env', 'PROD_BACKUP_SCHEDULE') }}
+
+[trading_servers]
+# Primary trading server cluster - Load balanced
+prod-trader-01 ansible_host={{ lookup('env', 'PROD_TRADER_01_HOST') }} priority=primary
+prod-trader-02 ansible_host={{ lookup('env', 'PROD_TRADER_02_HOST') }} priority=primary
+prod-trader-03 ansible_host={{ lookup('env', 'PROD_TRADER_03_HOST') }} priority=secondary
+prod-trader-04 ansible_host={{ lookup('env', 'PROD_TRADER_04_HOST') }} priority=secondary
+
+[database_servers]
+# PostgreSQL cluster with replication
+prod-db-primary ansible_host={{ lookup('env', 'PROD_DB_PRIMARY_HOST') }} role=primary
+prod-db-replica-01 ansible_host={{ lookup('env', 'PROD_DB_REPLICA_01_HOST') }} role=replica
+prod-db-replica-02 ansible_host={{ lookup('env', 'PROD_DB_REPLICA_02_HOST') }} role=replica
+
+[cache_servers]
+# Redis cluster nodes
+prod-cache-01 ansible_host={{ lookup('env', 'PROD_CACHE_01_HOST') }} redis_role=master
+prod-cache-02 ansible_host={{ lookup('env', 'PROD_CACHE_02_HOST') }} redis_role=master
+prod-cache-03 ansible_host={{ lookup('env', 'PROD_CACHE_03_HOST') }} redis_role=master
+prod-cache-04 ansible_host={{ lookup('env', 'PROD_CACHE_04_HOST') }} redis_role=replica
+prod-cache-05 ansible_host={{ lookup('env', 'PROD_CACHE_05_HOST') }} redis_role=replica
+prod-cache-06 ansible_host={{ lookup('env', 'PROD_CACHE_06_HOST') }} redis_role=replica
+
+[monitoring_servers]
+# Monitoring and alerting infrastructure
+prod-monitor-01 ansible_host={{ lookup('env', 'PROD_MONITOR_01_HOST') }}
+prod-monitor-02 ansible_host={{ lookup('env', 'PROD_MONITOR_02_HOST') }}
+
+[api_servers]
+# REST API servers - Public facing
+prod-api-01 ansible_host={{ lookup('env', 'PROD_API_01_HOST') }}
+prod-api-02 ansible_host={{ lookup('env', 'PROD_API_02_HOST') }}
+prod-api-03 ansible_host={{ lookup('env', 'PROD_API_03_HOST') }}
+
+[ml_servers]
+# ML model inference servers - GPU enabled
+prod-ml-01 ansible_host={{ lookup('env', 'PROD_ML_01_HOST') }} gpu_type={{ lookup('env', 'PROD_ML_GPU_TYPE') }}
+prod-ml-02 ansible_host={{ lookup('env', 'PROD_ML_02_HOST') }} gpu_type={{ lookup('env', 'PROD_ML_GPU_TYPE') }}
+
+[load_balancers]
+# Load balancers
+prod-lb-01 ansible_host={{ lookup('env', 'PROD_LB_01_HOST') }}
+prod-lb-02 ansible_host={{ lookup('env', 'PROD_LB_02_HOST') }}
+
+# Group aggregations
+[production:children]
+trading_servers
+database_servers
+cache_servers
+monitoring_servers
+api_servers
+ml_servers
+load_balancers
+
+[production:vars]
+deployment_mode=production
+log_level={{ lookup('env', 'PROD_LOG_LEVEL') | default('INFO', true) }}
+enable_debug=false
+enable_profiling=false
+rate_limiting_enabled=true
+ddos_protection_enabled=true

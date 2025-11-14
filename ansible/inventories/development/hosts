@@ -1,0 +1,74 @@
+# Quantum Trader AI - Development Environment Inventory
+# Ansible hosts configuration for development deployment
+# Environment: Development
+# Purpose: Local testing and feature development
+
+[all:vars]
+# Environment configuration
+environment=development
+ansible_user={{ lookup('env', 'DEV_SSH_USER') | default('ubuntu', true) }}
+ansible_port={{ lookup('env', 'DEV_SSH_PORT') | default('22', true) }}
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_private_key_file={{ lookup('env', 'DEV_SSH_KEY_PATH') | default('~/.ssh/id_rsa', true) }}
+
+# Application configuration
+app_name=quantum_trader_ai
+app_version={{ lookup('env', 'APP_VERSION') | default('latest', true) }}
+app_port={{ lookup('env', 'DEV_APP_PORT') | default('8000', true) }}
+app_workers={{ lookup('env', 'DEV_APP_WORKERS') | default('2', true) }}
+
+# Database configuration
+db_host={{ lookup('env', 'DEV_DB_HOST') | default('localhost', true) }}
+db_port={{ lookup('env', 'DEV_DB_PORT') | default('5432', true) }}
+db_name={{ lookup('env', 'DEV_DB_NAME') | default('quantum_trader_dev', true) }}
+
+# Redis configuration
+redis_host={{ lookup('env', 'DEV_REDIS_HOST') | default('localhost', true) }}
+redis_port={{ lookup('env', 'DEV_REDIS_PORT') | default('6379', true) }}
+
+# Monitoring configuration
+prometheus_port={{ lookup('env', 'DEV_PROMETHEUS_PORT') | default('9090', true) }}
+grafana_port={{ lookup('env', 'DEV_GRAFANA_PORT') | default('3000', true) }}
+
+# Resource limits
+memory_limit={{ lookup('env', 'DEV_MEMORY_LIMIT') | default('4g', true) }}
+cpu_limit={{ lookup('env', 'DEV_CPU_LIMIT') | default('2', true) }}
+
+[trading_servers]
+# Development trading server instances
+dev-trader-01 ansible_host={{ lookup('env', 'DEV_TRADER_01_HOST') | default('127.0.0.1', true) }}
+
+[database_servers]
+# Development database server
+dev-db-01 ansible_host={{ lookup('env', 'DEV_DB_01_HOST') | default('127.0.0.1', true) }}
+
+[cache_servers]
+# Development Redis cache server
+dev-cache-01 ansible_host={{ lookup('env', 'DEV_CACHE_01_HOST') | default('127.0.0.1', true) }}
+
+[monitoring_servers]
+# Development monitoring stack
+dev-monitor-01 ansible_host={{ lookup('env', 'DEV_MONITOR_01_HOST') | default('127.0.0.1', true) }}
+
+[api_servers]
+# Development API servers
+dev-api-01 ansible_host={{ lookup('env', 'DEV_API_01_HOST') | default('127.0.0.1', true) }}
+
+[ml_servers]
+# Development ML model servers
+dev-ml-01 ansible_host={{ lookup('env', 'DEV_ML_01_HOST') | default('127.0.0.1', true) }}
+
+# Group aggregations
+[development:children]
+trading_servers
+database_servers
+cache_servers
+monitoring_servers
+api_servers
+ml_servers
+
+[development:vars]
+deployment_mode=development
+log_level={{ lookup('env', 'DEV_LOG_LEVEL') | default('DEBUG', true) }}
+enable_debug={{ lookup('env', 'DEV_ENABLE_DEBUG') | default('true', true) }}
+enable_profiling={{ lookup('env', 'DEV_ENABLE_PROFILING') | default('true', true) }}
