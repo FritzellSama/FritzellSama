@@ -1,8 +1,18 @@
+# =============================================================================
+# QUANTUM TRADER AI - GIT IGNORE
+# =============================================================================
+
+# -----------------------------------------------------------------------------
 # Python
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -16,49 +26,418 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Virtual environments
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Scrapy
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+docs/.doctrees/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# -----------------------------------------------------------------------------
+# Virtual Environments
+# -----------------------------------------------------------------------------
 venv/
 ENV/
 env/
 .venv
+env.bak/
+venv.bak/
 
-# IDEs
+# -----------------------------------------------------------------------------
+# IDE & Editors
+# -----------------------------------------------------------------------------
+# VSCode
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
 *.swo
 *~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+.\#*
+.projectile
+
+# -----------------------------------------------------------------------------
+# Operating System
+# -----------------------------------------------------------------------------
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
 
-# Jupyter
-.ipynb_checkpoints
+# Linux
+*~
+.directory
+.Trash-*
 
-# Environment variables
+# -----------------------------------------------------------------------------
+# Environment & Secrets
+# -----------------------------------------------------------------------------
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+*.env
+.envrc
 
-# Logs
-*.log
-logs/
+# API Keys and Secrets
+secrets/
+credentials/
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+api_keys.json
+service_account.json
+*_secrets.yaml
+*_credentials.yaml
 
+# -----------------------------------------------------------------------------
 # Database
+# -----------------------------------------------------------------------------
 *.db
 *.sqlite
 *.sqlite3
+db_data/
+*.db-journal
 
-# Secrets and credentials
-*.pem
-*.key
-credentials.json
-secrets.yaml
+# PostgreSQL
+*.sql
+pg_data/
+
+# Redis
+dump.rdb
+appendonly.aof
+
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
+*.log
+logs/
+*.out
+*.err
+log/
+*.log.*
+
+# -----------------------------------------------------------------------------
+# Data Files
+# -----------------------------------------------------------------------------
+# Raw data
+data/raw/*
+!data/raw/.gitkeep
+
+# Processed data
+data/processed/*
+!data/processed/.gitkeep
+
+# Backtest data
+data/backtest/*
+!data/backtest/.gitkeep
+
+# Historical data
+data/historical/*
+!data/historical/.gitkeep
+
+# Temporary data
+data/tmp/*
+!data/tmp/.gitkeep
+
+# Cached data
+data/cache/*
+!data/cache/.gitkeep
+
+# CSV and data files
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.hdf5
+*.h5
+
+# -----------------------------------------------------------------------------
+# Machine Learning Models
+# -----------------------------------------------------------------------------
+# Model files
+models/*.pkl
+models/*.h5
+models/*.pth
+models/*.pt
+models/*.onnx
+models/*.pb
+models/*.tflite
+models/*.joblib
+!models/.gitkeep
+
+# Checkpoints
+checkpoints/
+*.ckpt
+*.checkpoint
+
+# TensorBoard
+runs/
+tensorboard_logs/
+
+# Weights
+*.weights
+
+# -----------------------------------------------------------------------------
+# Monitoring & Metrics
+# -----------------------------------------------------------------------------
+# Prometheus
+monitoring/prometheus/data/*
+!monitoring/prometheus/data/.gitkeep
+
+# Grafana
+monitoring/grafana/data/*
+!monitoring/grafana/data/.gitkeep
+
+# -----------------------------------------------------------------------------
+# Docker
+# -----------------------------------------------------------------------------
+# Don't ignore Dockerfiles, but ignore build artifacts
+.dockerignore
+
+# Docker volumes
+docker/volumes/*
+!docker/volumes/.gitkeep
+
+# -----------------------------------------------------------------------------
+# Backups
+# -----------------------------------------------------------------------------
+*.bak
+*.backup
+*.old
+*.orig
+backup/
+backups/
+
+# -----------------------------------------------------------------------------
+# Temporary Files
+# -----------------------------------------------------------------------------
+*.tmp
+*.temp
+*.cache
+.tmp/
+tmp/
+temp/
+
+# -----------------------------------------------------------------------------
+# Reports & Outputs
+# -----------------------------------------------------------------------------
+reports/*
+!reports/.gitkeep
+output/*
+!output/.gitkeep
+results/*
+!results/.gitkeep
+
+# PDF and Office documents (generated)
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+
+# -----------------------------------------------------------------------------
+# Testing
+# -----------------------------------------------------------------------------
+.tox/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+test_results/
+test_output/
+
+# -----------------------------------------------------------------------------
+# Build Artifacts
+# -----------------------------------------------------------------------------
+*.o
+*.a
+*.lib
+*.dll
+*.exe
+*.out
+*.app
+
+# -----------------------------------------------------------------------------
+# Configuration Overrides
+# -----------------------------------------------------------------------------
+# Local configurations
+config/local*.yaml
+config/*.local.yaml
+local_config/
+
+# User-specific configurations
+*_local.*
+*.local.*
+
+# -----------------------------------------------------------------------------
+# Ansible
+# -----------------------------------------------------------------------------
+ansible/inventory/local
+ansible/host_vars/
+ansible/group_vars/local
+*.retry
+
+# -----------------------------------------------------------------------------
+# Notebooks (exclude outputs)
+# -----------------------------------------------------------------------------
+*.ipynb_checkpoints
+
+# -----------------------------------------------------------------------------
+# Performance & Profiling
+# -----------------------------------------------------------------------------
+*.prof
+*.lprof
+.prof/
+profiling/
+
+# -----------------------------------------------------------------------------
+# Package Managers
+# -----------------------------------------------------------------------------
+# pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Poetry
+poetry.lock
+
+# npm (if using Node for dashboard)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# -----------------------------------------------------------------------------
+# Project Specific
+# -----------------------------------------------------------------------------
+# Trading data (sensitive)
+trades/
+positions/
+orders/
+
+# Live trading state
+state/
+*.state
+
+# Exchange data caches
+.exchange_cache/
+
+# Performance tracking
+performance_data/
+
+# User uploaded files
+uploads/
+
+# Generated documentation
+docs/generated/
+
+# Local scripts
+scripts/local_*
+scripts/*_local.sh
+
+# Development databases
+dev.db
+development.db
