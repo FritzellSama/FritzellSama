@@ -1,115 +1,80 @@
-"""Base abstract class for all machine learning models.
+"""Base model abstract class for all ML models.
 
-This module provides the foundation for implementing ML models in the trading system.
+This module defines the abstract base class that all ML models must inherit from.
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, Any
-import numpy as np
-from structlog import get_logger
+from __future__ import annotations
 
-logger = get_logger(__name__)
+from abc import ABC, abstractmethod
+from typing import Dict
+import numpy as np
 
 
 class BaseMLModel(ABC):
-    """Abstract base class for all ML models.
+    """Abstract base for all ML models.
 
-    All machine learning models in the system must inherit from this class
-    and implement its abstract methods.
-
-    Attributes:
-        config: Model configuration dictionary
-
-    Example:
-        >>> class MyModel(BaseMLModel):
-        ...     def train(self, features, labels):
-        ...         # Training implementation
-        ...         pass
-        ...     def predict(self, features):
-        ...         # Prediction implementation
-        ...         return np.array([])
-        ...     def evaluate(self, features, labels):
-        ...         return {"accuracy": 0.95}
-        ...     def save(self, path):
-        ...         pass
-        ...     def load(self, path):
-        ...         pass
+    All machine learning models in the system must inherit from this base class
+    and implement the required methods for training, prediction, evaluation,
+    and model persistence.
     """
 
-    def __init__(self, config: Dict[str, Any]) -> None:
-        """Initialize the model with configuration.
+    def __init__(self, config: Dict) -> None:
+        """Initialize the base model.
 
         Args:
-            config: Model configuration dictionary containing hyperparameters
-                   and other settings
+            config: Model configuration dictionary
         """
         self.config = config
-        logger.info("model_initialized", model_type=self.__class__.__name__)
 
     @abstractmethod
     def train(self, features: np.ndarray, labels: np.ndarray) -> None:
-        """Train the model on provided features and labels.
+        """Train the model on provided data.
 
         Args:
-            features: Training features as numpy array
-            labels: Training labels as numpy array
-
-        Raises:
-            NotImplementedError: Must be implemented by subclass
+            features: Training features array
+            labels: Training labels array
         """
         pass
 
     @abstractmethod
     def predict(self, features: np.ndarray) -> np.ndarray:
-        """Generate predictions for the given features.
+        """Make predictions on provided features.
 
         Args:
-            features: Input features as numpy array
+            features: Features array for prediction
 
         Returns:
-            Predictions as numpy array
-
-        Raises:
-            NotImplementedError: Must be implemented by subclass
+            Predictions array
         """
         pass
 
     @abstractmethod
     def evaluate(self, features: np.ndarray, labels: np.ndarray) -> Dict[str, float]:
-        """Evaluate model performance on test data.
+        """Evaluate model performance.
 
         Args:
-            features: Test features as numpy array
-            labels: Test labels as numpy array
+            features: Evaluation features array
+            labels: True labels array
 
         Returns:
-            Dictionary containing evaluation metrics (e.g., accuracy, loss)
-
-        Raises:
-            NotImplementedError: Must be implemented by subclass
+            Dictionary of evaluation metrics
         """
         pass
 
     @abstractmethod
     def save(self, path: str) -> None:
-        """Save the model to disk.
+        """Save model to disk.
 
         Args:
-            path: File path where model should be saved
-
-        Raises:
-            NotImplementedError: Must be implemented by subclass
+            path: File path to save model
         """
         pass
 
     @abstractmethod
     def load(self, path: str) -> None:
-        """Load the model from disk.
+        """Load model from disk.
 
         Args:
-            path: File path from where model should be loaded
-
-        Raises:
-            NotImplementedError: Must be implemented by subclass
+            path: File path to load model from
         """
         pass
