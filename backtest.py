@@ -250,12 +250,13 @@ class BacktestEngine:
             )
 
         # Calculer taille position (maintenant avec stop_loss valide)
-        size = self.position_sizer.calculate_position_size(
-            capital=self.balance,
+        atr = self._calculate_atr_simple(current_price)
+        size = self.position_sizer.calculate_size(
+            account_balance=self.balance,
             entry_price=current_price,
             stop_loss=stop_loss,
             confidence=signal.confidence,
-            signal_type=side
+            atr=atr
         )
 
         if size == 0:
