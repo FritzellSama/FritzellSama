@@ -182,10 +182,12 @@ class BacktestEngine:
                 # 3. Exécuter signaux - FIX: Itérer correctement sur le dict
                 for strategy_name, strategy_signals in signals.items():
                     for signal in strategy_signals:
-                        self._execute_signal(signal, current_price, current_time)
+                        self._execute_signal(signal, current_price, current_time, strategy_name)
 
             except Exception as e:
-                self.logger.debug(f"⚠️ Erreur à {current_time}: {e}")
+                self.logger.error(f"⚠️ Erreur à {current_time}: {e}")
+                import traceback
+                traceback.print_exc()
 
             # 4. Enregistrer equity
             total_equity = self._calculate_equity(current_price)
@@ -219,7 +221,7 @@ class BacktestEngine:
 
         return results
 
-    def _execute_signal(self, signal, current_price: float, current_time):
+    def _execute_signal(self, signal, current_price: float, current_time, strategy_name: str):
         """Exécute un signal en backtest"""
 
         # Vérifier si on peut trader
@@ -231,16 +233,19 @@ class BacktestEngine:
             return
 
         # FIX: Calculer SL/TP AVANT position_sizer
+        # Mapper action -> side ('BUY' -> 'long', 'SELL' -> 'short')
+        side = 'long' if signal.action == 'BUY' else 'short'
+
         if signal.stop_loss:
             stop_loss = signal.stop_loss
         else:
             atr = self._calculate_atr_simple(current_price)
             # Utiliser create_stop_loss() avec un position_id temporaire
-            position_id = f"backtest_{current_time.strftime('%Y%m%d_%H%M%S')}_{signal.strategy}"
+            position_id = f"backtest_{current_time.strftime('%Y%m%d_%H%M%S')}_{strategy_name}"
             stop_loss = self.stop_loss_manager.create_stop_loss(
                 position_id=position_id,
                 entry_price=current_price,
-                side=signal.type,
+                side=side,
                 atr=atr
             )
 
@@ -250,7 +255,7 @@ class BacktestEngine:
             entry_price=current_price,
             stop_loss=stop_loss,
             confidence=signal.confidence,
-            signal_type=signal.type
+            signal_type=side
         )
 
         if size == 0:
@@ -275,21 +280,21 @@ class BacktestEngine:
         take_profit_levels = self.take_profit_manager.calculate_take_profit_levels(
             entry_price=current_price,
             stop_loss=stop_loss,
-            position_side=signal.type
+            position_side=side
         )
 
         # Créer position
         position = {
             'id': len(self.positions),
             'symbol': signal.symbol,
-            'side': signal.type,
+            'side': side,
             'entry_price': current_price,
             'entry_time': current_time,
             'size': size,
             'initial_size': size,
             'stop_loss': stop_loss,
             'take_profit': take_profit_levels,
-            'strategy': signal.strategy,
+            'strategy': strategy_name,
             'commission_paid': commission
         }
 
@@ -300,7 +305,7 @@ class BacktestEngine:
         self.positions.append(position)
 
         self.logger.info(
-            f"📝 Position ouverte: {signal.type.upper()} @ ${current_price:.2f} | "
+            f"📝 Position ouverte: {signal.action} ({side}) @ ${current_price:.2f} | "
             f"Size: {size:.8f} BTC (${cost:.2f}) | SL: ${stop_loss:.2f}"
         )
 
