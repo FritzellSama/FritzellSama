@@ -235,9 +235,12 @@ class BacktestEngine:
             stop_loss = signal.stop_loss
         else:
             atr = self._calculate_atr_simple(current_price)
-            stop_loss = self.stop_loss_manager.calculate_stop_loss(
+            # Utiliser create_stop_loss() avec un position_id temporaire
+            position_id = f"backtest_{current_time.strftime('%Y%m%d_%H%M%S')}_{signal.strategy}"
+            stop_loss = self.stop_loss_manager.create_stop_loss(
+                position_id=position_id,
                 entry_price=current_price,
-                position_side=signal.type,
+                side=signal.type,
                 atr=atr
             )
 
